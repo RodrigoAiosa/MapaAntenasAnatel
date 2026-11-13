@@ -168,9 +168,39 @@
     return { pontos, ignoradas };
   }
 
+  // Ranking "qual operadora e melhor aqui". Nota de 0 a 100 so com o que a base
+  // sabe: proximidade da mais perto (40%), melhor geracao entre as antenas no
+  // raio (40%) e quantas antenas ha no raio, ate 10 (20%). NAO mede sinal,
+  // velocidade nem qualidade: licenciada nao quer dizer ligada.
+  // candidatas: [{ op, km, ger }] ja filtradas pelo raio; ger e a mascara de
+  // bits 2G..5G (bit 0..3). ops: ids das operadoras a listar.
+  function rankingOperadoras(candidatas, ops, raioKm) {
+    const por = {};
+    for (const c of candidatas) {
+      const r = por[c.op] || (por[c.op] = { maisPerto: Infinity, mascara: 0, quantidade: 0 });
+      if (c.km < r.maisPerto) r.maisPerto = c.km;
+      r.mascara |= c.ger;
+      r.quantidade++;
+    }
+    const lista = ops.map((op) => {
+      const r = por[op];
+      if (!r) return { op, nota: 0, maisPerto: null, melhorGeracao: -1, quantidade: 0 };
+      let melhor = -1;
+      for (let b = 3; b >= 0; b--) if (r.mascara & (1 << b)) { melhor = b; break; }
+      const prox = Math.max(0, 1 - 0.9 * r.maisPerto / Math.max(raioKm, 0.1));
+      const ger = (melhor + 1) / 4;
+      const dens = Math.min(r.quantidade, 10) / 10;
+      return { op, nota: Math.round(100 * (0.4 * prox + 0.4 * ger + 0.2 * dens)),
+        maisPerto: r.maisPerto, melhorGeracao: melhor, quantidade: r.quantidade };
+    });
+    lista.sort((a, b) => b.nota - a.nota || (a.maisPerto === null) - (b.maisPerto === null) ||
+      (a.maisPerto || 0) - (b.maisPerto || 0));
+    return lista;
+  }
+
   const api = {
     distanciaKm, janelaEmGraus, formatarDistancia, formatarDMS, RAIO_TERRA_KM,
-    CAIXA_BRASIL, criarIndice, paraCadaCandidato, lerLote, dentroDoBrasil
+    CAIXA_BRASIL, criarIndice, paraCadaCandidato, lerLote, dentroDoBrasil, rankingOperadoras
   };
   raiz.Geo = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

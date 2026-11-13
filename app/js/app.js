@@ -887,9 +887,11 @@
   // Cada busca ganha um numero: resposta de uma busca antiga que chega depois
   // de uma nova e descartada, em vez de voar para o lugar errado.
   var buscaAtual = 0;
+  var textoBuscado = '';   // o que foi digitado: vai para as buscas recentes quando acha
 
   function executarBusca() {
     var t = $('#entrada').value.trim();
+    textoBuscado = t;
     var lista = $('#lista');
     var minha = ++buscaAtual;
     aviso('');
@@ -905,6 +907,7 @@
           '). Confira o sinal de menos e a ordem: latitude primeiro.', 'erro');
         return;
       }
+      registrarRecente(t);
       buscarPerto(la, lo, true);
       return;
     }
@@ -927,7 +930,7 @@
     // endereco e vai direto ao Nominatim. O que nao bate com municipio nenhum
     // tambem tenta como endereco antes de dar erro.
     var temCaraDeEndereco = window.Endereco ? Endereco.pareceEndereco(t) : false;
-    if (!temCaraDeEndereco && buscarMunicipio(t)) return;
+    if (!temCaraDeEndereco && buscarMunicipio(t)) { registrarRecente(t); return; }
     if (!window.Endereco) { aviso('Nao achei municipio com "' + t + '".', 'erro'); return; }
     buscarEnderecoTexto(t, minha);
   }
@@ -946,6 +949,7 @@
   }
 
   function irParaEndereco(r) {
+    registrarRecente(textoBuscado);
     buscarPerto(r.lat, r.lon, true, { rotulo: r.rotulo, precisao: r.precisao });
     // O endereco achado ja aparece no quadro "Antenas perto do ponto"; aqui
     // fica so a precisao, que e o que muda a confianca na resposta.
@@ -1057,6 +1061,7 @@
   // soltar, o link da vista e atualizado. O pino tem 40 px de area de toque
   // para o dedo pegar ele, e nao o mapa.
   function buscarPerto(lat, lon, centralizar, origem) {
+    $('#salvar-form').hidden = true;
     estado.ponto = {
       lat: lat, lon: lon, rotulo: origem && origem.rotulo, precisao: origem && origem.precisao,
       ajustado: false, reverso: null, versao: 0
@@ -1207,6 +1212,7 @@
   function fecharPerto() {
     estado.ponto = null;
     estado.respostaRapida = null;
+    $('#salvar-form').hidden = true;
     if (marcadorPonto) { mapa.removeLayer(marcadorPonto); marcadorPonto = null; }
     if (circuloRaio) { mapa.removeLayer(circuloRaio); circuloRaio = null; }
     camadaFeixes.clearLayers();
@@ -1305,6 +1311,7 @@
       }
     }
     renderizarResposta(melhorOp, alcance);
+    renderizarComparador(noRaio);
     var tab = $('#perto-operadoras');
     tab.innerHTML = h;
     ligarItens(tab);
@@ -1765,6 +1772,7 @@
     $('#perto-endereco').addEventListener('click', enderecoDoPino);
     $('#copiar-link').addEventListener('click', copiarLink);
     $('#compartilhar').addEventListener('click', compartilhar);
+    ligarLugares();
     window.addEventListener('offline', function () {
       aviso('Sem internet: as antenas continuam no mapa. Busca por CEP/endereço, mapa de fundo e cobertura precisam de conexão.', '');
     });
@@ -1958,6 +1966,140 @@
     } else {
       window.open('https://wa.me/?text=' + encodeURIComponent(texto + ' ' + url), '_blank', 'noopener');
     }
+  }
+
+  // ------------------------------------- 8c. COMPARADOR "QUAL OPERADORA E MELHOR AQUI?"
+  // A nota (Geo.rankingOperadoras) usa so o que a base sabe: distancia, geracao e
+  // quantidade de antenas no raio. Nao mede sinal: o texto abaixo da lista diz isso.
+  function renderizarComparador(noRaio) {
+    var ops = opsDoLote();
+    var bloco = $('#comparador-bloco');
+    if (ops.length < 2) { bloco.hidden = true; return; }
+    var cand = noRaio.map(function (par) {
+      return { op: D.op[par[0]], km: par[1], ger: D.ger[par[0]] };
+    });
+    var rank = Geo.rankingOperadoras(cand, ops, estado.raioKm);
+    var h = '';
+    rank.forEach(function (r, pos) {
+      var melhor = pos === 0 && r.nota > 0;
+      var sub = r.quantidade
+        ? ANT_GERACOES[r.melhorGeracao] + ' no raio · a ' + Geo.formatarDistancia(r.maisPerto) +
+          ' · ' + r.quantidade + ' antena' + (r.quantidade === 1 ? '' : 's')
+        : 'sem antena em ' + estado.raioKm + ' km';
+      h += '<li' + (melhor ? ' class="melhor"' : '') + '><div class="rank-topo"><span class="rank-pos">' + (pos + 1) +
+        'º</span><span class="bolinha" style="display:inline-block;background:' + esc(corOp(r.op)) + '"></span>' +
+        '<span>' + esc(nomeOp(r.op)) + '</span>' + (melhor ? '<span class="rank-selo">Melhor opção</span>' : '') +
+        '<span class="rank-nota">' + r.nota + '</span></div>' +
+        '<div class="rank-barra"><i style="width:' + r.nota + '%;background:' + esc(corOp(r.op)) + '"></i></div>' +
+        '<div class="rank-sub">' + esc(sub) + '</div></li>';
+    });
+    $('#comparador').innerHTML = h;
+    bloco.hidden = false;
+  }
+
+  // ------------------------------------------------ 8d. MEUS LUGARES (favoritos e recentes)
+  // Tudo fica no localStorage deste navegador (antenas.lugares.v1). Nada e enviado.
+  var CHAVE_LUGARES = 'antenas.lugares.v1';
+  var MAX_FAVORITOS = 20, MAX_RECENTES = 8;
+  var lugares = { fav: [], rec: [] };
+
+  function carregarLugares() {
+    try {
+      var s = JSON.parse(localStorage.getItem(CHAVE_LUGARES) || 'null');
+      if (!s) return;
+      lugares.fav = (s.fav || []).filter(function (f) {
+        return f && typeof f.nome === 'string' && isFinite(f.lat) && isFinite(f.lon) && Geo.dentroDoBrasil(f.lat, f.lon);
+      }).slice(0, MAX_FAVORITOS);
+      lugares.rec = (s.rec || []).filter(function (q) { return typeof q === 'string' && q; }).slice(0, MAX_RECENTES);
+    } catch (e) { /* storage indisponivel: vale so nesta aba */ }
+  }
+  function gravarLugares() {
+    try { localStorage.setItem(CHAVE_LUGARES, JSON.stringify(lugares)); } catch (e) { /* ok */ }
+  }
+
+  function registrarRecente(q) {
+    q = (q || '').trim().slice(0, 120);
+    if (!q) return;
+    var chave = q.toLowerCase();
+    lugares.rec = lugares.rec.filter(function (x) { return x.toLowerCase() !== chave; });
+    lugares.rec.unshift(q);
+    lugares.rec = lugares.rec.slice(0, MAX_RECENTES);
+    gravarLugares();
+    renderizarLugares();
+  }
+
+  function renderizarLugares() {
+    var fav = $('#lugares-favoritos'), rec = $('#lugares-recentes');
+    fav.innerHTML = lugares.fav.map(function (f, i) {
+      return '<div class="lugar" role="listitem"><button type="button" class="lugar-ir" data-fav="' + i +
+        '" title="Ir para este lugar"><span class="estrela" aria-hidden="true">★</span>' + esc(f.nome) + '</button>' +
+        '<button type="button" class="lugar-x" data-del-fav="' + i + '" aria-label="Remover ' + esc(f.nome) +
+        '" title="Remover">&times;</button></div>';
+    }).join('');
+    rec.innerHTML = lugares.rec.map(function (q, i) {
+      return '<div class="lugar" role="listitem"><button type="button" class="lugar-ir" data-rec="' + i +
+        '" title="Buscar de novo"><span class="relogio" aria-hidden="true">↺</span>' + esc(q) + '</button>' +
+        '<button type="button" class="lugar-x" data-del-rec="' + i + '" aria-label="Remover ' + esc(q) +
+        ' das buscas recentes" title="Remover">&times;</button></div>';
+    }).join('');
+    $('#lugares-recentes-titulo').hidden = !lugares.rec.length;
+    $('#lugares-limpar').hidden = !lugares.rec.length;
+    $('#lugares-vazio').hidden = !!(lugares.fav.length || lugares.rec.length);
+  }
+
+  function salvarPontoAtual() {
+    var P = estado.ponto;
+    if (!P) return;
+    var nome = ($('#salvar-nome').value || '').trim().slice(0, 60) ||
+      ('Ponto ' + P.lat.toFixed(4) + ', ' + P.lon.toFixed(4));
+    var k = P.lat.toFixed(5) + ',' + P.lon.toFixed(5);
+    var existente = -1;
+    lugares.fav.forEach(function (f, i) { if (f.lat.toFixed(5) + ',' + f.lon.toFixed(5) === k) existente = i; });
+    if (existente >= 0) lugares.fav.splice(existente, 1);
+    lugares.fav.unshift({ nome: nome, lat: +P.lat.toFixed(6), lon: +P.lon.toFixed(6) });
+    lugares.fav = lugares.fav.slice(0, MAX_FAVORITOS);
+    gravarLugares();
+    renderizarLugares();
+    $('#salvar-form').hidden = true;
+    var b = $('#perto-salvar');
+    b.textContent = '★ Ponto salvo';
+    setTimeout(function () { b.textContent = '☆ Salvar este ponto'; }, 1800);
+    if (window.Painel) Painel.abrir($('#secao-lugares'), false);
+  }
+
+  function ligarLugares() {
+    carregarLugares();
+    renderizarLugares();
+    $('#perto-salvar').addEventListener('click', function () {
+      var P = estado.ponto;
+      if (!P) return;
+      $('#salvar-nome').value = (P.rotulo || '').slice(0, 60);
+      $('#salvar-form').hidden = false;
+      $('#salvar-nome').focus();
+    });
+    $('#salvar-ok').addEventListener('click', salvarPontoAtual);
+    $('#salvar-nome').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') salvarPontoAtual();
+      else if (e.key === 'Escape') { $('#salvar-form').hidden = true; $('#perto-salvar').focus(); }
+    });
+    $('#secao-lugares').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b) return;
+      var ds = b.dataset;
+      if (ds.fav != null) {
+        var f = lugares.fav[+ds.fav];
+        if (f) { buscarPerto(f.lat, f.lon, true); aviso('Lugar salvo: ' + f.nome + '.', 'ok'); }
+      } else if (ds.rec != null) {
+        var q = lugares.rec[+ds.rec];
+        if (q) { $('#entrada').value = q; executarBusca(); }
+      } else if (ds.delFav != null) {
+        lugares.fav.splice(+ds.delFav, 1); gravarLugares(); renderizarLugares();
+      } else if (ds.delRec != null) {
+        lugares.rec.splice(+ds.delRec, 1); gravarLugares(); renderizarLugares();
+      } else if (b.id === 'lugares-limpar') {
+        lugares.rec = []; gravarLugares(); renderizarLugares();
+      }
+    });
   }
 
   // ------------------------------------------------------------ 11. INICIO

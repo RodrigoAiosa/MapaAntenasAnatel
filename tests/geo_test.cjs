@@ -300,6 +300,25 @@ casoAsync('endereco do pino: busca e reverso dividem o limite de 1 pedido/s', as
   assert.ok(esperas[0] >= 1000, String(esperas));
 });
 
+caso('ranking: mais perto e geracao mais alta vencem; sem antena fica no fim com nota 0', () => {
+  const r = Geo.rankingOperadoras([
+    { op: 0, km: 0.3, ger: 0b1110 }, { op: 0, km: 1.2, ger: 0b0100 },   // op 0: 4G a 300 m
+    { op: 1, km: 2.0, ger: 0b0011 },                                     // op 1: so 3G, mais longe
+  ], [0, 1, 2], 5);
+  assert.deepStrictEqual(r.map((x) => x.op), [0, 1, 2]);
+  assert.strictEqual(r[0].melhorGeracao, 3);
+  assert.strictEqual(r[0].quantidade, 2);
+  assert.strictEqual(r[2].nota, 0);
+  assert.strictEqual(r[2].maisPerto, null);
+  assert.ok(r[0].nota > r[1].nota && r[1].nota > 0 && r[0].nota <= 100);
+});
+
+caso('ranking: lista vazia devolve todas com nota 0, sem quebrar', () => {
+  const r = Geo.rankingOperadoras([], [0, 1], 5);
+  assert.strictEqual(r.length, 2);
+  assert.ok(r.every((x) => x.nota === 0 && x.melhorGeracao === -1));
+});
+
 filaAsync.then(() => {
   if (falhas) { console.log(falhas + ' falha(s)'); process.exit(1); }
   console.log('todos ok');

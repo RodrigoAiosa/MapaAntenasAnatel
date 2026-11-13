@@ -36,9 +36,12 @@ Variáveis opcionais em [`.env.example`](.env.example): `SITE_URL`, `INCLUIR_PLA
 | SEO: `canonical`, Open Graph, Twitter Card, `robots.txt`, `sitemap.xml` | `scripts/vercel_build.py`, `public_extra/` |
 | PWA: `manifest.webmanifest` e ícone, instalável no celular | `public_extra/` |
 | **Cartão-resposta** (a melhor antena primeiro), **botão de localização por GPS** e **exemplos clicáveis** na busca | `app/js/app.js` |
+| **Painel em seções recolhíveis** (o básico aberto, o avançado fechado; lembra sua escolha) | `app/js/painel.js` |
+| **Meus lugares**: salvar pontos favoritos e buscas recentes (só no navegador) | `app/js/app.js` |
+| **"Qual operadora é melhor aqui?"**: ranking de 0 a 100 por proximidade, geração e quantidade de antenas (não mede sinal) | `app/js/geo.js`, `app/js/app.js` |
 | **Funciona offline** e abre instantâneo nas visitas seguintes (service worker; offline ficam as antenas, sem mapa de fundo) | `public_extra/sw.js` |
 | **Botão Compartilhar**: WhatsApp (computador) ou folha de compartilhamento do aparelho (celular), com o link do ponto marcado | `app/js/app.js` |
-| **Tour gamificado** na primeira visita: 14 missões com XP, níveis, sumário clicável, conquista final e botão 🏆 "Missões" no topo para refazer (só `localStorage`, nada sai do navegador) | `app/js/tour.js` |
+| **Tour gamificado** na primeira visita: 15 missões com XP, níveis, sumário clicável, conquista final e botão 🏆 "Missões" no topo para refazer (só `localStorage`, nada sai do navegador) | `app/js/tour.js` |
 | Página 404 própria | `public_extra/404.html` |
 | Página **Sobre / Privacidade (LGPD)**: fonte, limites, serviços de terceiros | `public_extra/sobre.html` |
 | `/status.json`: data da base, contagens e commit, para monitorar | `scripts/vercel_build.py` |

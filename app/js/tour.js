@@ -34,6 +34,9 @@
     { id: 'busca', icone: '🔎', titulo: 'Encontrar um lugar',
       alvo: function () { return secaoDe('#entrada'); }, painel: true,
       texto: 'Digite um endereço, CEP, coordenada, município ou o número de uma ERB, ou toque em "Usar minha localização". Sem ideia do que digitar? Use os exemplos abaixo do campo.' },
+    { id: 'lugares', icone: '⭐', titulo: 'Meus lugares',
+      alvo: function () { return document.getElementById('secao-lugares'); }, painel: true,
+      texto: 'Salve pontos com "Salvar este ponto" e volte a eles com um toque. As buscas recentes ficam aqui também. Tudo só no seu navegador.' },
     { id: 'lote', icone: '📋', titulo: 'Lote de pontos',
       alvo: function () { return document.getElementById('secao-lote'); }, painel: true,
       texto: 'Cole uma lista de coordenadas (ou abra um CSV) e receba a antena mais próxima de cada operadora em cada ponto. Fica só no seu navegador.' },
@@ -42,7 +45,7 @@
       texto: 'Pinte as torres por operadora ou pela geração mais alta (2G a 5G). A legenda abaixo explica as cores.' },
     { id: 'operadoras', icone: '📡', titulo: 'Filtrar operadoras',
       alvo: function () { return secaoDe('#filtro-operadoras'); }, painel: true,
-      texto: 'Mostre só as operadoras que interessam. A busca por ponto respeita este filtro.' },
+      texto: 'Mostre só as operadoras que interessam. A busca por ponto respeita este filtro, e o ranking "Qual operadora é melhor aqui?" aparece quando você marca um ponto.' },
     { id: 'geracoes', icone: '📶', titulo: 'Filtrar gerações',
       alvo: function () { return secaoDe('#filtro-geracoes'); }, painel: true,
       texto: 'Quer saber onde há 3G de voz? Deixe só o 3G marcado: a "mais próxima" passa a ser a mais próxima com 3G.' },
@@ -287,6 +290,7 @@
     abrirCamada(); limpar(); atual = i;
     garantirPainel(!!m.painel);
     var alvo = m.alvo();
+    if (window.Painel && alvo && m.painel) window.Painel.abrir(alvo, false); // secao recolhida: abre so durante o tour
     if (!visivel(alvo)) { // item ausente nesta tela (ex.: sem o botao): pula
       return i < MISSOES.length - 1 ? missao(i + 1) : telaFinal();
     }
