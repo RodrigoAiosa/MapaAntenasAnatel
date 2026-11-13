@@ -17,7 +17,7 @@ de cobertura, ficha da ERB) estão descritas em
 1. Na Vercel: **Add New → Project → Import** `RodrigoAiosa/MapaAntenasAnatel`.
 2. Não mude nada: o `vercel.json` já define build (`python3 scripts/vercel_build.py`), saída (`public/`) e cabeçalhos.
 3. **Deploy.** O build baixa a base da Anatel (~90 MB), gera o mapa e só publica se a conferência `lidas = no mapa + fora` fechar.
-4. *(Atualização semanal)* Em **Settings → Git → Deploy Hooks**, crie um hook para `main`, e salve a URL como secret `VERCEL_DEPLOY_HOOK_URL` no GitHub (**Settings → Secrets and variables → Actions**). O workflow `atualizar-base.yml` refaz o deploy toda segunda, 06:00 de Brasília.
+4. *(Atualização semanal)* Em **Settings → Git → Deploy Hooks**, crie um hook para `main`, e salve a URL como secret `VERCEL_DEPLOY_HOOK_URL` no GitHub (**Settings → Secrets and variables → Actions**). O workflow `atualizar-base.yml` refaz o deploy todo dia, 06:00 de Brasília.
 
 Variáveis opcionais em [`.env.example`](.env.example): `SITE_URL`, `INCLUIR_PLANILHA=1` (publica o `.xlsx` em `/dados/`) e `UFS` (recorte).
 

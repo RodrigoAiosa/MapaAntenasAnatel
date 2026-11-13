@@ -1,15 +1,15 @@
-# Refaz o deploy na Vercel toda segunda com a base do dia da Anatel.
+# Refaz o deploy na Vercel todo dia com a base do dia da Anatel.
 # O build (scripts/vercel_build.py) baixa a base e gera o mapa. Se a
 # conferência "lidas = no mapa + fora" falhar, a Vercel mantém o deploy anterior.
 #
 # Configurar uma vez: Vercel > Project > Settings > Git > Deploy Hooks
 # (branch main) e salvar a URL como secret VERCEL_DEPLOY_HOOK_URL no GitHub
 # (Settings > Secrets and variables > Actions).
-name: Atualizar base da Anatel
+name: Atualizar base da Anatel (diário)
 
 on:
   schedule:
-    - cron: "0 9 * * 1"   # segunda, 06:00 de Brasília
+    - cron: "0 9 * * *"   # todo dia, 06:00 de Brasília
   workflow_dispatch:
 
 permissions: {}
