@@ -163,6 +163,7 @@ def montar_html(destino, estacoes, info, origem):
         "ENDERECO_JS": lambda: ler("app/js/endereco.js"),
         "COBERTURA_JS": lambda: ler("app/js/cobertura.js"),
         "APP_JS": lambda: ler("app/js/app.js"),
+        "TOUR_JS": lambda: ler("app/js/tour.js"),
     }
     html = MODELO.read_text(encoding="utf-8")
     for nome, conteudo in partes.items():

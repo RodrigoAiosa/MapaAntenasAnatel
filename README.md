@@ -35,6 +35,7 @@ Variáveis opcionais em [`.env.example`](.env.example): `SITE_URL`, `INCLUIR_PLA
 | Cache correto por tipo de arquivo | `vercel.json` |
 | SEO: `canonical`, Open Graph, Twitter Card, `robots.txt`, `sitemap.xml` | `scripts/vercel_build.py`, `public_extra/` |
 | PWA: `manifest.webmanifest` e ícone, instalável no celular | `public_extra/` |
+| **Tour gamificado** na primeira visita: 14 missões com XP, níveis, sumário clicável, conquista final e botão 🏆 "Missões" no topo para refazer (só `localStorage`, nada sai do navegador) | `app/js/tour.js` |
 | Página 404 própria | `public_extra/404.html` |
 | Página **Sobre / Privacidade (LGPD)**: fonte, limites, serviços de terceiros | `public_extra/sobre.html` |
 | `/status.json`: data da base, contagens e commit, para monitorar | `scripts/vercel_build.py` |
