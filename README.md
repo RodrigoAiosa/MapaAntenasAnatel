@@ -36,6 +36,7 @@ Variáveis opcionais em [`.env.example`](.env.example): `SITE_URL`, `INCLUIR_PLA
 | SEO: `canonical`, Open Graph, Twitter Card, `robots.txt`, `sitemap.xml` | `scripts/vercel_build.py`, `public_extra/` |
 | PWA: `manifest.webmanifest` e ícone, instalável no celular | `public_extra/` |
 | **Cartão-resposta** (a melhor antena primeiro), **botão de localização por GPS** e **exemplos clicáveis** na busca | `app/js/app.js` |
+| **Menu fecha arrastando para a esquerda** no celular (acompanha o dedo; não atrapalha rolagem nem a barra de raio) | `app/js/painel.js` |
 | **Painel em seções recolhíveis** (o básico aberto, o avançado fechado; lembra sua escolha) | `app/js/painel.js` |
 | **Meus lugares**: salvar pontos favoritos e buscas recentes (só no navegador) | `app/js/app.js` |
 | **"Qual operadora é melhor aqui?"**: ranking de 0 a 100 por proximidade, geração e quantidade de antenas (não mede sinal) | `app/js/geo.js`, `app/js/app.js` |

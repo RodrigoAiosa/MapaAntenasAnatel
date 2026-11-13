@@ -722,6 +722,7 @@ select.campo option { background: var(--card); color: var(--text); }
 .chip-botao.ativo { background: linear-gradient(135deg, #0875da, #005bac); color: #fff; box-shadow: 0 2px 12px var(--blue-glow); }
 
 /* --------------------------------------------------------------- CELULAR */
+.painel-puxador { display: none; }
 #alternar-painel {
   display: none; position: absolute; left: 12px; bottom: 70px; z-index: 1001;
   padding: 11px 18px; border-radius: 999px; border: none;
@@ -782,6 +783,12 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
     will-change: transform; box-shadow: var(--shadow-lg);
   }
   body.painel-aberto #painel { transform: none; }
+  #painel { touch-action: pan-y; overscroll-behavior-x: contain; }
+  body.painel-aberto .painel-puxador {
+    display: block; position: absolute; z-index: 1003; pointer-events: none;
+    left: calc(min(88vw, var(--painel)) + 6px); top: 50%; width: 4px; height: 46px;
+    margin-top: -23px; border-radius: 99px; background: rgba(255,255,255,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+  }
   #alternar-painel { display: block; }
   #recolher-painel { display: none; }
   #ficha { right: 10px; left: 10px; top: 10px; width: auto; }

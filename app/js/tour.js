@@ -74,8 +74,12 @@
       alvo: function () { return document.getElementById('tema'); },
       texto: 'Alterne entre o tema escuro e o claro, o que for melhor para seus olhos.' },
     { id: 'menu', icone: '↔️', titulo: 'Tela cheia do mapa',
-      alvo: function () { return document.getElementById('recolher-painel'); },
-      texto: 'Esconde o menu lateral para ver o mapa em tela cheia. No celular, use o botão "Filtros".' }
+      alvo: function () {
+        var b = document.getElementById('recolher-painel');
+        return visivel(b) ? b : document.getElementById('alternar-painel');
+      },
+      texto: 'Esconde o menu lateral para ver o mapa em tela cheia.',
+      textoMovel: 'O botão "Filtros" abre o menu. Para fechar, arraste o menu para a esquerda com o dedo.' }
   ];
 
   var CSS = [
@@ -307,7 +311,7 @@
     cartao.innerHTML = barraXp() +
       '<h2 class="tr-titulo"><span class="tr-icone" aria-hidden="true">' + m.icone + '</span>' + esc(m.titulo) + '</h2>' +
       '<div class="tr-topo" style="margin:-2px 0 6px"><span>Missão ' + (i + 1) + ' de ' + MISSOES.length + '</span></div>' +
-      '<p class="tr-texto">' + esc(m.texto) + '</p>' +
+      '<p class="tr-texto">' + esc((mobile() && m.textoMovel) || m.texto) + '</p>' +
       '<div class="tr-acoes">' +
       '<button type="button" class="tr-btn suave" id="tr-sumario">Sumário</button><span class="tr-esp"></span>' +
       (i > 0 ? '<button type="button" class="tr-btn" id="tr-voltar">Voltar</button>' : '') +
