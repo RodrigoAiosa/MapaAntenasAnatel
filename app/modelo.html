@@ -801,6 +801,25 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 @media (prefers-reduced-motion: no-preference) {
   .lista-rolagem, #ficha { scroll-behavior: smooth; }
 }
+
+/* ------------------------------------------------ RESPOSTA RAPIDA, LOCALIZACAO E EXEMPLOS
+   Lei de Pareto/Hick: a resposta que a maioria quer vem primeiro, em um cartao. */
+.exemplos { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.exemplo { font: 600 12px/1 'Inter', sans-serif; padding: 6px 10px; border-radius: 99px; border: 1px dashed var(--border2); background: transparent; color: var(--cor-azul); cursor: pointer; transition: transform var(--rapido) var(--curva), background var(--rapido); }
+.exemplo:hover { background: var(--blue-dim); transform: translateY(-1px); }
+.exemplo:focus-visible, .resposta-cartao:focus-visible { outline: 2px solid var(--cor-ciano); outline-offset: 2px; }
+#usar-local[disabled] { opacity: .65; cursor: progress; }
+.resposta { margin: 0 0 10px; }
+.resposta:empty { display: none; }
+.resposta-cartao { display: block; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  padding: 12px 14px; border-radius: var(--rsm); background: var(--card2); border: 1px solid var(--border2); border-left-width: 4px; }
+.resposta-cartao:hover { border-color: var(--cor-ciano); }
+.resposta-rotulo { font-size: 10.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.resposta-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 3px 0 2px; }
+.resposta-op { font-size: 17px; font-weight: 800; }
+.resposta-dist { font-size: 17px; font-weight: 700; }
+.resposta-sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.resposta-vazia { padding: 12px 14px; border-radius: var(--rsm); background: var(--card2); border: 1px dashed var(--border2); font-size: 13px; line-height: 1.5; }
 </style>
 </head>
 
@@ -850,6 +869,15 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
         <button id="buscar" class="primario" type="button">Buscar</button>
         <button id="limpar" type="button">Limpar</button>
       </div>
+      <div class="botoes">
+        <button id="usar-local" type="button" hidden
+          title="Usa o GPS do aparelho para marcar o pino onde voce esta. A coordenada nao sai do navegador.">Usar minha localização</button>
+      </div>
+      <div class="exemplos" id="exemplos">Experimente:
+        <button type="button" class="exemplo" data-q="-23.5505, -46.6333">coordenada</button>
+        <button type="button" class="exemplo" data-q="88015-200">CEP</button>
+        <button type="button" class="exemplo" data-q="Joinville">município</button>
+      </div>
       <div id="erro" class="msg" role="status" aria-live="polite"></div>
       <div id="lista" class="lista lista-rolagem" hidden></div>
       <div class="nota">Endereco, CEP ou coordenada: lista as antenas em volta. Um clique
@@ -860,6 +888,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 
     <div class="secao" id="secao-perto" hidden>
       <h2>Antenas perto do ponto</h2>
+      <div id="resposta" class="resposta" aria-live="polite"></div>
       <div id="perto-cabeca" class="msg" style="margin-top:0"></div>
       <div class="botoes"><button id="perto-endereco" type="button" hidden
         title="Consulta o OpenStreetMap com a coordenada do pino">Qual o endereco deste ponto?</button></div>

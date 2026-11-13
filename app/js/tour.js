@@ -33,7 +33,7 @@
   var MISSOES = [
     { id: 'busca', icone: '🔎', titulo: 'Encontrar um lugar',
       alvo: function () { return secaoDe('#entrada'); }, painel: true,
-      texto: 'Digite um endereço, CEP, coordenada, município ou o número de uma ERB. Dica: clicar no mapa também marca um ponto.' },
+      texto: 'Digite um endereço, CEP, coordenada, município ou o número de uma ERB, ou toque em "Usar minha localização". Sem ideia do que digitar? Use os exemplos abaixo do campo.' },
     { id: 'lote', icone: '📋', titulo: 'Lote de pontos',
       alvo: function () { return document.getElementById('secao-lote'); }, painel: true,
       texto: 'Cole uma lista de coordenadas (ou abra um CSV) e receba a antena mais próxima de cada operadora em cada ponto. Fica só no seu navegador.' },

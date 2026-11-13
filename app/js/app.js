@@ -1213,6 +1213,66 @@
     agendarLink();
   }
 
+  // Cartao-resposta: a melhor opcao primeiro, a tabela completa logo abaixo.
+  function renderizarResposta(melhorOp, alcance) {
+    var caixa = $('#resposta');
+    var melhor = null, nOps = 0, nNoRaio = 0;
+    for (var k = 0; k < ANT_OPERADORAS.length; k++) {
+      if (!estado.operadoras[k] || !opPresente[k]) continue;
+      nOps++;
+      var m = melhorOp[k];
+      if (!m) continue;
+      if (m[1] <= estado.raioKm) nNoRaio++;
+      if (!melhor || m[1] < melhor[1][1]) melhor = [k, m];
+    }
+    if (!melhor) {
+      caixa.innerHTML = '<div class="resposta-vazia"><strong>Nenhuma antena em ' + alcance +
+        ' km</strong> com os filtros atuais. Tente marcar mais operadoras ou gerações.</div>';
+      return;
+    }
+    var k0 = melhor[0], i0 = melhor[1][0], d0 = melhor[1][1];
+    caixa.innerHTML = '<button type="button" class="resposta-cartao" data-i="' + i0 +
+      '" style="border-left-color:' + esc(corOp(k0)) + '" title="Ver esta antena no mapa">' +
+      '<div class="resposta-rotulo">Mais próxima do ponto</div>' +
+      '<div class="resposta-linha"><span class="resposta-op" style="color:' + esc(corOp(k0)) + '">' +
+      esc(nomeOp(k0)) + '</span><span class="resposta-dist">' + Geo.formatarDistancia(d0) + '</span>' +
+      pilulasGeracao(D.ger[i0]) + '</div>' +
+      '<div class="resposta-sub">' + nNoRaio + ' de ' + nOps + ' operadora' + (nOps === 1 ? '' : 's') +
+      ' com antena a até ' + estado.raioKm + ' km. Proximidade não garante sinal.</div></button>';
+    caixa.querySelector('button').addEventListener('click', function () { irPara(i0); });
+  }
+
+  // Localizacao do aparelho: um toque marca o pino onde o usuario esta.
+  // A coordenada fica no navegador (nao vai a nenhum servico).
+  function usarMinhaLocalizacao() {
+    var b = $('#usar-local');
+    if (!navigator.geolocation) { aviso('Este navegador não informa a localização.', 'erro'); return; }
+    var rotulo = b.textContent;
+    b.disabled = true; b.textContent = 'Localizando...';
+    aviso('Pedindo a localização ao aparelho...');
+    function pronto() { b.disabled = false; b.textContent = rotulo; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      pronto();
+      var la = pos.coords.latitude, lo = pos.coords.longitude;
+      if (la < -34 || la > 6 || lo < -74 || lo > -28) {
+        aviso('Sua localização (' + la.toFixed(3) + ', ' + lo.toFixed(3) + ') fica fora do Brasil, onde a base não cobre.', 'erro');
+        return;
+      }
+      buscarPerto(la, lo, true);
+      var prec = pos.coords.accuracy;
+      aviso('Localização obtida' + (prec ? ' (precisão de cerca de ' + Geo.formatarDistancia(prec / 1000) + ')' : '') +
+        '. Arraste o pino se precisar ajustar.', 'ok');
+    }, function (e) {
+      pronto();
+      var msg = e && e.code === 1
+        ? 'Permissão negada. Libere a localização para este site no navegador, ou digite o endereço.'
+        : e && e.code === 3
+          ? 'A localização demorou demais. Tente de novo ou digite o endereço.'
+          : 'Não consegui obter a localização agora. Digite o endereço ou a coordenada.';
+      aviso(msg, 'erro');
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  }
+
   // `continuo`: o redesenho vem de um gesto que se repete (arrastar o pino,
   // correr o raio). Sem a animacao de entrada, porque ela recomecaria a cada
   // quadro e a tabela ficaria apagada enquanto o gesto dura.
@@ -1242,6 +1302,7 @@
           alcance + ' km</td></tr>';
       }
     }
+    renderizarResposta(melhorOp, alcance);
     var tab = $('#perto-operadoras');
     tab.innerHTML = h;
     ligarItens(tab);
@@ -1662,6 +1723,16 @@
 
   function ligarInterface() {
     $('#buscar').addEventListener('click', executarBusca);
+    document.querySelectorAll('#exemplos .exemplo').forEach(function (b) {
+      b.addEventListener('click', function () {
+        $('#entrada').value = b.getAttribute('data-q');
+        executarBusca();
+      });
+    });
+    if (navigator.geolocation) {
+      $('#usar-local').hidden = false;
+      $('#usar-local').addEventListener('click', usarMinhaLocalizacao);
+    }
     $('#entrada').addEventListener('keydown', function (e) { if (e.key === 'Enter') executarBusca(); });
     $('#limpar').addEventListener('click', function () {
       buscaAtual++; // resposta de CEP/endereco ainda a caminho e descartada
