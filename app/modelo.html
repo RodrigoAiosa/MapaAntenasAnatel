@@ -609,12 +609,13 @@ select.campo option { background: var(--card); color: var(--text); }
 #hud span { padding: 8px 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #hud span + span { border-left: 1px solid var(--border); }
 #hud b { color: var(--text); font-weight: 700; }
-#copiar-link {
+#copiar-link, #compartilhar {
   border: none; border-left: 1px solid var(--border); background: transparent; color: var(--cor-ciano);
   font: 700 11.5px/1 'Inter', sans-serif; padding: 8px 12px; cursor: pointer;
   transition: background-color var(--rapido), color var(--rapido);
 }
-#copiar-link:hover { background: var(--ciano-dim); color: var(--text); }
+#copiar-link:hover, #compartilhar:hover { background: var(--ciano-dim); color: var(--text); }
+#compartilhar:focus-visible, #copiar-link:focus-visible { outline: 2px solid var(--cor-ciano); outline-offset: -2px; }
 
 /* Lote de pontos. */
 #lote-texto {
@@ -999,6 +1000,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
       <span class="hud-coord" id="hud-coord">—</span>
       <span id="hud-zoom">z —</span>
       <button id="copiar-link" type="button" title="Copia um link que reabre esta mesma vista (regiao, ponto e filtros)">Copiar link</button>
+      <button id="compartilhar" type="button" title="Envia esta vista por WhatsApp ou pelo compartilhamento do aparelho (o link leva o ponto marcado)">Compartilhar</button>
     </div>
     <div id="ficha" hidden></div>
     <div id="seletor-base" class="controle-mapa" role="group" aria-label="Mapa base"></div>

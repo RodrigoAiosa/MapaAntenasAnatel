@@ -8,7 +8,7 @@ O que acontece (a Vercel roda isto a cada deploy):
  2. gera o mapa (ferramentas/gerar.py) numa pasta temporaria;
  3. confere a regra "lidas = no mapa + fora": se divergir, o build FALHA e a
     Vercel mantem o deploy anterior no ar;
- 4. monta public/ com index.html (SEO, Open Graph e PWA injetados), 404.html,
+ 4. monta public/ com index.html (SEO, Open Graph e PWA injetados), sw.js (offline), 404.html,
     sobre.html (privacidade e fontes), robots.txt, sitemap.xml,
     manifest.webmanifest, icon.svg e status.json (data da base e contagens);
  5. com --planilha (ou INCLUIR_PLANILHA=1) tambem publica o .xlsx em /dados/.
@@ -73,6 +73,10 @@ def tags_de_cabecalho(base):
         '<meta name="twitter:title" content="%s">' % t,
         '<meta name="twitter:description" content="%s">' % d,
     ]
+    linhas.append(
+        '<script>if("serviceWorker"in navigator&&(location.protocol==="https:"||location.hostname==="localhost"'
+        '||location.hostname==="127.0.0.1")){addEventListener("load",function(){'
+        'navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>')
     if base:
         linhas.append('<link rel="canonical" href="%s/">' % base)
         linhas.append('<meta property="og:url" content="%s/">' % base)
@@ -164,9 +168,12 @@ def main(argv=None):
 
     # Arquivos estaticos mantidos em public_extra/ (404, sobre, manifest, icone, robots).
     data_anatel = origem.get("data_anatel") or "indisponível"
+    versao = (os.environ.get("VERCEL_GIT_COMMIT_SHA", "")[:7] or "local") + "-" + \
+        datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
     for modelo in sorted(EXTRA.iterdir()):
         conteudo = modelo.read_text(encoding="utf-8")
         conteudo = (conteudo.replace("{{SITE_URL}}", base)
+                    .replace("{{VERSAO}}", versao)
                     .replace("{{DATA_ANATEL}}", html.escape(data_anatel))
                     .replace("{{NO_MAPA}}", "{:,}".format(conferencia["no_mapa"]).replace(",", "."))
                     .replace("{{LINK_PLANILHA}}",

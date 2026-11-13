@@ -1206,6 +1206,7 @@
 
   function fecharPerto() {
     estado.ponto = null;
+    estado.respostaRapida = null;
     if (marcadorPonto) { mapa.removeLayer(marcadorPonto); marcadorPonto = null; }
     if (circuloRaio) { mapa.removeLayer(circuloRaio); circuloRaio = null; }
     camadaFeixes.clearLayers();
@@ -1225,6 +1226,7 @@
       if (m[1] <= estado.raioKm) nNoRaio++;
       if (!melhor || m[1] < melhor[1][1]) melhor = [k, m];
     }
+    estado.respostaRapida = melhor ? { op: melhor[0], i: melhor[1][0], km: melhor[1][1] } : null;
     if (!melhor) {
       caixa.innerHTML = '<div class="resposta-vazia"><strong>Nenhuma antena em ' + alcance +
         ' km</strong> com os filtros atuais. Tente marcar mais operadoras ou gerações.</div>';
@@ -1762,6 +1764,11 @@
     $('#perto-fechar').addEventListener('click', fecharPerto);
     $('#perto-endereco').addEventListener('click', enderecoDoPino);
     $('#copiar-link').addEventListener('click', copiarLink);
+    $('#compartilhar').addEventListener('click', compartilhar);
+    window.addEventListener('offline', function () {
+      aviso('Sem internet: as antenas continuam no mapa. Busca por CEP/endereço, mapa de fundo e cobertura precisam de conexão.', '');
+    });
+    window.addEventListener('online', function () { aviso('Conexão restabelecida.', 'ok'); });
 
     $('#cobertura-opacidade').addEventListener('input', function () {
       estado.opacidade = +this.value / 100;
@@ -1929,6 +1936,27 @@
         function () { window.prompt('Copie o link da vista:', url); });
     } else {
       window.prompt('Copie o link da vista:', url);
+    }
+  }
+
+  // Compartilhar: no celular abre a folha de compartilhamento do aparelho; no
+  // computador abre o WhatsApp Web. So sai o que o usuario decide enviar: o
+  // link da vista (com o ponto marcado, se houver) e uma frase-resumo.
+  function compartilhar() {
+    escreverLink();
+    var url = location.href, R = estado.respostaRapida, texto;
+    if (estado.ponto && R) {
+      var gs = [];
+      for (var b = 0; b < ANT_GERACOES.length; b++) if (D.ger[R.i] & (1 << b)) gs.push(ANT_GERACOES[b]);
+      texto = 'Antena mais próxima do ponto: ' + nomeOp(R.op) + ', a ' + Geo.formatarDistancia(R.km) +
+        (gs.length ? ' (' + gs.join('/') + ')' : '') + '. Veja no mapa:';
+    } else {
+      texto = 'Mapa de Antenas Anatel: antenas de celular licenciadas, por operadora. Veja:';
+    }
+    if (navigator.share) {
+      navigator.share({ title: 'Mapa de Antenas Anatel', text: texto, url: url }).catch(function () { /* cancelado */ });
+    } else {
+      window.open('https://wa.me/?text=' + encodeURIComponent(texto + ' ' + url), '_blank', 'noopener');
     }
   }
 
