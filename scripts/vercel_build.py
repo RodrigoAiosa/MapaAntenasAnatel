@@ -14,6 +14,7 @@ O que acontece (a Vercel roda isto a cada deploy):
  5. com --planilha (ou INCLUIR_PLANILHA=1) tambem publica o .xlsx em /dados/.
 
 Variaveis de ambiente opcionais:
+    STREETVIEW_KEY            chave da Street View Static API (foto no balao do ponto; opcional)
     SITE_URL                  URL publica (padrao: VERCEL_PROJECT_PRODUCTION_URL)
     INCLUIR_PLANILHA=1        gera e publica a planilha (instala openpyxl se faltar)
     UFS                       recorte por UF, ex.: SC,PR (padrao: Brasil inteiro)
@@ -77,6 +78,9 @@ def tags_de_cabecalho(base):
         '<script>if("serviceWorker"in navigator&&(location.protocol==="https:"||location.hostname==="localhost"'
         '||location.hostname==="127.0.0.1")){addEventListener("load",function(){'
         'navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>')
+    chave_sv = os.environ.get("STREETVIEW_KEY", "").strip()
+    if chave_sv and re.fullmatch(r"[A-Za-z0-9_-]{20,80}", chave_sv):
+        linhas.append('<meta name="streetview-key" content="%s">' % chave_sv)
     if base:
         linhas.append('<link rel="canonical" href="%s/">' % base)
         linhas.append('<meta property="og:url" content="%s/">' % base)

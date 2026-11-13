@@ -76,3 +76,7 @@ dizer ligada**: a base mostra a licença, não se a antena está no ar nem o alc
 Código sob [MIT](LICENSE), com os direitos de João Victor Faraco preservados. Leaflet e as fontes
 Inter e Montserrat (em `ferramentas/vendor/`) mantêm as licenças próprias (BSD-2 e OFL).
 Mapas © colaboradores do OpenStreetMap.
+
+## Foto da rua no balão do ponto
+
+Ao marcar um ponto, o balão mostra coordenada, endereço, a antena mais próxima e a foto do Google Street View virada para essa antena. A foto só carrega depois de um clique (a coordenada vai ao Google). Para ativar, crie uma chave da Street View Static API, restrinja por referenciador ao seu domínio, defina um limite de cota e salve na Vercel como `STREETVIEW_KEY`. Sem a chave o balão mostra apenas o link "Abrir no Street View", que não precisa de chave.

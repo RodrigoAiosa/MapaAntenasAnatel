@@ -319,6 +319,14 @@ caso('ranking: lista vazia devolve todas com nota 0, sem quebrar', () => {
   assert.ok(r.every((x) => x.nota === 0 && x.melhorGeracao === -1));
 });
 
+caso('rumo: pontos cardeais', () => {
+  const perto = (a, b) => Math.abs(((a - b + 540) % 360) - 180) < 0.5;
+  assert.ok(perto(Geo.rumoGraus(-23, -46, -22, -46), 0));
+  assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -45), 90));
+  assert.ok(perto(Geo.rumoGraus(-23, -46, -24, -46), 180));
+  assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -47), 270));
+});
+
 filaAsync.then(() => {
   if (falhas) { console.log(falhas + ' falha(s)'); process.exit(1); }
   console.log('todos ok');

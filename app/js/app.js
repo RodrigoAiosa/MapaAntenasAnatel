@@ -1080,10 +1080,12 @@
       zIndexOffset: 400
     }).addTo(mapa);
     ligarArrastePino(marcadorPonto);
+    ligarFichaPonto(marcadorPonto);
     desenharRaio();
     if (centralizar) voarParaArea(circuloRaio.getBounds(), { maxZoom: 15 });
     renderizarPerto();
     $('#secao-perto').hidden = false;
+    abrirFicha();
     agendarLink();
     // No celular o painel esta fechado: abre para a resposta aparecer.
     if (window.matchMedia && window.matchMedia('(max-width: 780px)').matches) {
@@ -1124,6 +1126,153 @@
       renderizarPerto(true);
       agendarLink();
     });
+  }
+
+
+  // ------------------------------------------------ FICHA DO PONTO + STREET VIEW
+  // Balao sobre o pino: coordenada, endereco, antena mais proxima e a foto da
+  // rua (Google Street View). PRIVACIDADE: a foto exige a coordenada no Google,
+  // entao so carrega depois de um clique (uma vez por visita) e o link "Abrir no
+  // Street View" so abre quando a pessoa clica. Sem chave configurada, o balao
+  // mostra so o link, que nao precisa de chave.
+  var svConsentido = false;
+  var popupFicha = null;
+
+  function chaveStreetView() {
+    var m = document.querySelector('meta[name="streetview-key"]');
+    return ((m && m.content) || '').trim();
+  }
+
+  function linkStreetView(lat, lon) {
+    return 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' +
+      lat.toFixed(6) + ',' + lon.toFixed(6);
+  }
+
+  function infoFichaHtml() {
+    var P = estado.ponto;
+    if (!P) return '';
+    var h = '<div class="ficha-coord"><code>' + P.lat.toFixed(5) + ', ' + P.lon.toFixed(5) + '</code></div>';
+    var R = P.reverso;
+    var end = (P.rotulo && !P.ajustado) ? P.rotulo : (R && R.rotulo) || '';
+    if (end) h += '<div class="ficha-end">' + esc(end) + '</div>';
+    var r = estado.respostaRapida;
+    if (r) {
+      h += '<div class="ficha-ant" style="border-left-color:' + esc(corOp(r.op)) + '">' +
+        '<span class="ficha-rotulo">Antena mais próxima</span><br>' +
+        '<strong style="color:' + esc(corOp(r.op)) + '">' + esc(nomeOp(r.op)) + '</strong> a ' +
+        Geo.formatarDistancia(r.km) + ' ' + pilulasGeracao(D.ger[r.i]) + '</div>';
+    } else {
+      h += '<div class="ficha-ant"><span class="ficha-rotulo">Nenhuma antena no alcance com os filtros atuais.</span></div>';
+    }
+    return h;
+  }
+
+  function carregarFoto(caixa, P, versao) {
+    var chave = chaveStreetView();
+    var urlBase = 'https://maps.googleapis.com/maps/api/streetview';
+    caixa.className = 'ficha-foto carregando';
+    caixa.textContent = 'Procurando imagem da rua...';
+    function vivo() { return caixa.isConnected && estado.ponto === P && P.versao === versao; }
+    function falha(msg) { if (vivo()) { caixa.className = 'ficha-foto vazia'; caixa.textContent = msg; } }
+    var q = 'location=' + P.lat.toFixed(6) + ',' + P.lon.toFixed(6) + '&radius=60&source=outdoor&key=' +
+      encodeURIComponent(chave);
+    fetch(urlBase + '/metadata?' + q).then(function (r) { return r.json(); }).then(function (md) {
+      if (!vivo()) return;
+      if (md.status === 'ZERO_RESULTS') return falha('Sem imagem de rua perto deste ponto.');
+      if (md.status !== 'OK') return falha('Não consegui a foto agora (' + esc(md.status || 'erro') + ').');
+      var rr = estado.respostaRapida, rumo = null;
+      if (rr && md.location) rumo = Geo.rumoGraus(md.location.lat, md.location.lng, D.lat[rr.i], D.lon[rr.i]);
+      var url = urlBase + '?size=560x320&fov=90&pitch=8&pano=' + encodeURIComponent(md.pano_id) +
+        (rumo != null ? '&heading=' + Math.round(rumo) : '') + '&key=' + encodeURIComponent(chave);
+      var img = new Image();
+      img.alt = 'Foto da rua em ' + P.lat.toFixed(5) + ', ' + P.lon.toFixed(5) + ' (Google Street View)';
+      img.onload = function () {
+        if (!vivo()) return;
+        caixa.className = 'ficha-foto';
+        caixa.textContent = '';
+        caixa.appendChild(img);
+        var leg = document.createElement('div');
+        leg.className = 'ficha-legenda';
+        leg.textContent = 'Google Street View' + (md.date ? ' · imagem de ' + md.date : '') +
+          (rumo != null ? ' · virada para a antena mais próxima' : '');
+        caixa.appendChild(leg);
+      };
+      img.onerror = function () { falha('Não consegui carregar a foto.'); };
+      img.src = url;
+    }).catch(function () { falha('Sem conexão com o Google Street View.'); });
+  }
+
+  function montarFicha() {
+    var P = estado.ponto;
+    var raiz = document.createElement('div');
+    raiz.className = 'ficha';
+    L.DomEvent.disableClickPropagation(raiz);
+    var info = document.createElement('div');
+    info.className = 'ficha-info';
+    info.innerHTML = infoFichaHtml();
+    raiz.appendChild(info);
+
+    var caixa = document.createElement('div');
+    caixa.className = 'ficha-foto';
+    raiz.appendChild(caixa);
+    var chave = chaveStreetView();
+    var versao = P.versao;
+    if (chave) {
+      if (svConsentido) {
+        carregarFoto(caixa, P, versao);
+      } else {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ficha-ver';
+        b.textContent = 'Ver foto da rua (Google Street View)';
+        var nota = document.createElement('div');
+        nota.className = 'ficha-nota';
+        nota.textContent = 'Ao clicar, a coordenada deste ponto é enviada ao Google.';
+        b.addEventListener('click', function (e) {
+          // O botao some neste clique; sem isto o mapa nao reconhece que o clique veio do
+          // balao e poe um pino novo no lugar do botao.
+          L.DomEvent.stop(e);
+          svConsentido = true;
+          caixa.textContent = '';
+          carregarFoto(caixa, P, versao);
+        });
+        caixa.appendChild(b);
+        caixa.appendChild(nota);
+      }
+    }
+    var a = document.createElement('a');
+    a.className = 'ficha-link';
+    a.href = linkStreetView(P.lat, P.lon);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = 'Abrir no Street View ↗';
+    raiz.appendChild(a);
+    return raiz;
+  }
+
+  // O texto do balao acompanha o ponto (endereco achado, filtros) sem refazer a foto.
+  function atualizarInfoFicha() {
+    if (!popupFicha || !mapa.hasLayer(popupFicha)) return;
+    var el = popupFicha.getElement && popupFicha.getElement();
+    var info = el && el.querySelector('.ficha-info');
+    if (info) info.innerHTML = infoFichaHtml();
+  }
+
+  function abrirFicha() {
+    if (!estado.ponto || !marcadorPonto) return;
+    marcadorPonto.setPopupContent(montarFicha());
+    marcadorPonto.openPopup();
+    popupFicha = marcadorPonto.getPopup();
+  }
+
+  function ligarFichaPonto(m) {
+    m.bindPopup(document.createElement('div'), {
+      className: 'ficha-ponto', maxWidth: 320, minWidth: 260,
+      offset: [0, -14], autoPanPadding: [24, 110], closeOnClick: false, autoClose: false
+    });
+    m.on('click', abrirFicha);
+    m.on('dragstart', function () { m.closePopup(); });
+    m.on('dragend', abrirFicha);
   }
 
   // "Qual o endereco deste ponto?": so aqui a coordenada do pino sai do
@@ -1183,6 +1332,7 @@
     // arraste, ou o reverso ja achado) e enquanto a consulta esta em curso.
     var temEndereco = (P.rotulo && !P.ajustado) || (R && (R.rotulo || R.buscando));
     $('#perto-endereco').hidden = !!temEndereco;
+    atualizarInfoFicha();
   }
 
   function desenharRaio() {
@@ -1328,6 +1478,7 @@
     var lista = $('#perto-lista');
     lista.innerHTML = lh;
     ligarItens(lista);
+    atualizarInfoFicha();
   }
 
   // ------------------------------------------------- 8b. LOTE DE PONTOS (M10)

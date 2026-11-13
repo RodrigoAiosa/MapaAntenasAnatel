@@ -198,8 +198,18 @@
     return lista;
   }
 
+  // Rumo inicial (0 = norte, 90 = leste) de A para B, em graus. Usado para virar
+  // a foto da rua na direcao da antena mais proxima.
+  function rumoGraus(lat1, lon1, lat2, lon2) {
+    const dLon = (lon2 - lon1) * RAD;
+    const y = Math.sin(dLon) * Math.cos(lat2 * RAD);
+    const x = Math.cos(lat1 * RAD) * Math.sin(lat2 * RAD) -
+              Math.sin(lat1 * RAD) * Math.cos(lat2 * RAD) * Math.cos(dLon);
+    return (Math.atan2(y, x) / RAD + 360) % 360;
+  }
+
   const api = {
-    distanciaKm, janelaEmGraus, formatarDistancia, formatarDMS, RAIO_TERRA_KM,
+    rumoGraus, distanciaKm, janelaEmGraus, formatarDistancia, formatarDMS, RAIO_TERRA_KM,
     CAIXA_BRASIL, criarIndice, paraCadaCandidato, lerLote, dentroDoBrasil, rankingOperadoras
   };
   raiz.Geo = api;

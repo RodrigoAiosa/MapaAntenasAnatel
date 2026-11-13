@@ -857,6 +857,27 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .rank-barra { height: 6px; border-radius: 99px; background: var(--bg2); margin: 6px 0 4px; overflow: hidden; }
 .rank-barra i { display: block; height: 100%; border-radius: 99px; }
 .rank-sub { font-size: 11.5px; color: var(--muted); }
+
+/* Ficha do ponto (balao sobre o pino) com foto do Street View */
+.ficha-ponto .leaflet-popup-content-wrapper { background: var(--card); color: var(--text); border: 1px solid var(--border2); border-radius: var(--r); box-shadow: var(--shadow-lg); padding: 0; }
+.ficha-ponto .leaflet-popup-tip { background: var(--card); border: 1px solid var(--border2); }
+.ficha-ponto .leaflet-popup-content { margin: 12px 14px 12px; font: 13px/1.4 inherit; width: min(300px, 70vw) !important; }
+.ficha-ponto a.leaflet-popup-close-button { color: var(--muted); }
+.ficha { display: flex; flex-direction: column; gap: 9px; }
+.ficha-coord code { font-size: 12px; color: var(--cor-ciano); }
+.ficha-end { font-weight: 600; }
+.ficha-ant { border-left: 4px solid var(--border2); padding: 2px 0 2px 9px; }
+.ficha-rotulo { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ficha-foto { border-radius: var(--rsm); overflow: hidden; background: var(--card2); }
+.ficha-foto:empty { display: none; }
+.ficha-foto img { display: block; width: 100%; height: auto; aspect-ratio: 7 / 4; object-fit: cover; }
+.ficha-foto.carregando, .ficha-foto.vazia { padding: 22px 12px; text-align: center; color: var(--muted); }
+.ficha-legenda { padding: 5px 9px; font-size: 11px; color: var(--muted); }
+.ficha-ver { width: 100%; padding: 11px 12px; border: 0; border-radius: var(--rsm); background: var(--blue); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.ficha-ver:hover { background: var(--blue-h); }
+.ficha-nota { padding: 6px 9px 8px; font-size: 11px; color: var(--muted); }
+.ficha-link { align-self: flex-start; color: var(--cor-ciano); font-weight: 600; text-decoration: none; }
+.ficha-link:hover { text-decoration: underline; }
 </style>
 </head>
 
