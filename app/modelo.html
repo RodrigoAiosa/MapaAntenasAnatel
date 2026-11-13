@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="pt-BR" data-tema="escuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>Mapa de Antenas Anatel</title>
+<!-- Icone da aba: torre com ondas, embutido para abrir offline (sem arquivo a mais). -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.5 9.5a7.5 7.5 0 0 0 0 10.6M21.5 9.5a7.5 7.5 0 0 1 0 10.6M13.3 12.3a3.5 3.5 0 0 0 0 5M18.7 12.3a3.5 3.5 0 0 1 0 5' stroke='%2326d7e8' stroke-width='2'/%3E%3Cpath d='M16 15l-5 13M16 15l5 13M12.7 23.5h6.6' stroke='%231687ff' stroke-width='2.2'/%3E%3C/g%3E%3Ccircle cx='16' cy='14.8' r='2.2' fill='%23F5B400'/%3E%3C/svg%3E">
+<meta name="description" content="Estacoes radio base (ERBs) do Servico Movel Pessoal licenciadas na Anatel, por operadora e geracao.">
+
+<style>/*INSERIR:FONTES_CSS*/</style>
+<style>/*INSERIR:LEAFLET_CSS*/</style>
+
+<style>
+/* ===========================================================================
+   PALETA PROPRIA DO MAPA (10/11/2026). Nao depende da paleta do portal: o
+   mapa vai virar projeto publico e precisa se sustentar sozinho. Os matizes
+   seguem o mesmo gosto (azul vivo, ciano, ambar sobre fundo escuro).
+   O tema e o data-tema do <html> (o botao alterna). O escuro e o padrao; o
+   claro usa os mesmos matizes mais fechados, porque o ambar vivo some no
+   branco.
+   =========================================================================== */
+:root {
+  --cor-azul: #1687ff; --cor-ciano: #26d7e8; --cor-ambar: #F5B400; --cor-verde: #2db86a;
+  --cor-vermelho: #e05050; --cor-roxo: #a78bfa; --cor-laranja: #e08c00;
+  --amarelo-txt: var(--cor-ambar);
+}
+:root[data-tema="claro"] {
+  --cor-azul: #005BAC; --cor-ciano: #00869a; --cor-ambar: #a37600; --cor-verde: #1f8a4c;
+  --cor-vermelho: #c83737; --cor-roxo: #7c3aed; --cor-laranja: #b06500;
+}
+
+/* Superficies. */
+:root {
+  --blue: #005BAC; --blue-h: #004a8f;
+  --blue-dim: rgba(22, 135, 255, .14); --blue-glow: rgba(22, 135, 255, .38);
+  --ciano-dim: rgba(38, 215, 232, .14);
+  --yellow: #F5B400;
+  --bg: #0b0f14; --bg2: #0f1520; --card: #151c29; --card2: #1b2435;
+  --border: rgba(255, 255, 255, .07); --border2: rgba(255, 255, 255, .14);
+  --text: #e8edf5; --muted: #8494aa; --faint: #3d4d60;
+  --shadow: 0 4px 24px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 10px 48px rgba(0, 0, 0, .6);
+  --vidro: rgba(17, 24, 36, .78);
+  --filete: linear-gradient(90deg, var(--cor-azul), var(--cor-ciano) 62%, var(--yellow));
+  --r: 14px; --rsm: 9px;
+  --topo: 66px;
+  --painel: 352px;
+  --filtro-limpo: invert(1) hue-rotate(185deg) saturate(0.35) brightness(0.78) contrast(1.05);
+  /* Uma duracao para os cliques (acima de ~200 ms o clique parece lento) e a
+     curva de mola dos outros paineis para o que entra na tela. */
+  --rapido: 160ms;
+  --curva: cubic-bezier(.2, .8, .2, 1);
+  --mola: cubic-bezier(.34, 1.28, .64, 1);
+  --fundo: var(--bg); --texto: var(--text); --erro: var(--cor-vermelho); --marca: var(--cor-azul);
+}
+:root[data-tema="claro"] {
+  --blue-dim: rgba(0, 91, 172, .1); --blue-glow: rgba(0, 91, 172, .28);
+  --ciano-dim: rgba(0, 134, 154, .1);
+  --bg: #eef3f9; --bg2: #e6ecf5; --card: #ffffff; --card2: #f4f7fc;
+  --border: rgba(0, 91, 172, .1); --border2: rgba(0, 91, 172, .2);
+  --text: #0d1a2e; --muted: #55698a; --faint: #b0bfcf;
+  --shadow: 0 4px 24px rgba(0, 91, 172, .08);
+  --shadow-lg: 0 10px 48px rgba(0, 91, 172, .16);
+  --vidro: rgba(255, 255, 255, .84);
+  --filtro-limpo: saturate(0.22) brightness(1.05) contrast(0.94);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+/* Barras de rolagem finas. Chrome/Edge usam ::-webkit-scrollbar; o Firefox so
+   scrollbar-color. Os dois NAO vao juntos: no Chrome 121+ scrollbar-color
+   desliga os pseudo-elementos. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--cor-azul); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+@supports (-moz-appearance: none) { * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; } }
+
+html, body {
+  margin: 0; height: 100%;
+  /* Cada parte rola sozinha; sem isto a PAGINA ganhava barras depois de uma
+     busca por ponto (16/10/2026). */
+  overflow: hidden;
+  background: var(--bg); color: var(--text);
+}
+body {
+  display: flex; flex-direction: column;
+  font: 14px/1.5 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: 'cv11', 'ss03';
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  transition: background-color .25s ease, color .25s ease;
+}
+button, input, select { font: inherit; color: inherit; }
+
+/* ------------------------------------------------------- TELA DE ABERTURA
+   Fica na tela enquanto as 114 mil ERBs sao lidas do proprio arquivo, e sai
+   com um fade quando o mapa esta pronto. */
+#boot {
+  position: fixed; inset: 0; z-index: 5000;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(22, 135, 255, .18), transparent 32rem),
+    radial-gradient(circle at 80% 90%, rgba(38, 215, 232, .08), transparent 26rem),
+    var(--bg);
+  transition: opacity .6s var(--curva), transform .6s var(--curva), visibility 0s linear .6s;
+}
+#boot.saindo { opacity: 0; transform: scale(1.03); visibility: hidden; }
+.boot-centro { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.boot-radar { position: relative; width: 120px; height: 120px; }
+.boot-radar i {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 1px solid rgba(38, 215, 232, .35);
+  animation: onda 2.4s ease-out infinite;
+}
+.boot-radar i:nth-child(2) { animation-delay: .8s; }
+.boot-radar i:nth-child(3) { animation-delay: 1.6s; }
+.boot-radar b {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 72%, rgba(38, 215, 232, .55) 99%, transparent 100%);
+  -webkit-mask: radial-gradient(circle, transparent 0 18%, #000 19%);
+          mask: radial-gradient(circle, transparent 0 18%, #000 19%);
+  animation: girar 1.6s linear infinite;
+}
+.boot-radar s {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px;
+  border-radius: 50%; background: var(--cor-ciano);
+  box-shadow: 0 0 0 4px rgba(38, 215, 232, .18), 0 0 26px var(--cor-ciano);
+}
+.boot-titulo { font: 900 22px/1.1 Montserrat, sans-serif; letter-spacing: -.5px; color: var(--text); }
+.boot-titulo em { font-style: normal; color: var(--cor-ciano); }
+.boot-sub { font: 700 10px/1 Montserrat, sans-serif; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
+.boot-barra { width: 220px; height: 3px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.boot-barra::before {
+  content: ''; display: block; height: 100%; width: 40%; border-radius: 99px;
+  background: var(--filete);
+  animation: varrer 1.1s var(--curva) infinite;
+}
+
+/* ---------------------------------------------------------- CABECALHO
+   Barra escura com brilho azul e o filete azul -> ciano -> ambar embaixo.
+   Igual nos dois temas. O reflexo atravessa devagar, de tempos em tempos. */
+.header {
+  flex: 0 0 var(--topo); height: var(--topo);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 24px;
+  background:
+    radial-gradient(circle at 8% -60%, rgba(22, 135, 255, .45), transparent 42%),
+    radial-gradient(circle at 92% 160%, rgba(38, 215, 232, .18), transparent 40%),
+    linear-gradient(105deg, #07101d 0%, #0b1a30 52%, #081321 100%);
+  position: relative; z-index: 1100; isolation: isolate; overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 8px 28px rgba(0, 10, 25, .35), inset 0 1px rgba(255, 255, 255, .06);
+}
+.header::before {
+  content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(38, 215, 232, .05) 0 1px, transparent 1px 48px);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+          mask: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+}
+.header .reflexo {
+  position: absolute; z-index: -1; top: 0; bottom: 0; left: -40%; width: 40%; pointer-events: none;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, .09), transparent);
+  animation: reflexo 9s ease-in-out 1.5s infinite;
+}
+.header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, #1687ff, #26d7e8 55%, var(--yellow) 85%, transparent);
+  box-shadow: 0 0 14px rgba(38, 215, 232, .45);
+}
+.logo-name em { font-style: normal; background: linear-gradient(90deg, #4aa8ff, #26d7e8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.header-esq { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.header-titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.logo-name {
+  margin: 0; font: 900 22px/1.05 Montserrat, sans-serif; color: #fff; letter-spacing: -.55px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.logo-tag {
+  font: 750 9.5px/1.15 Montserrat, sans-serif; color: rgba(255, 255, 255, .7);
+  letter-spacing: 1.45px; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.header-right { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+.hbadge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 13px; border-radius: 999px;
+  font: 800 12px/1.3 Montserrat, sans-serif; white-space: nowrap;
+  background: linear-gradient(135deg, #ffd34d, var(--yellow)); color: #0d1a2e;
+  box-shadow: 0 4px 14px rgba(245, 180, 0, .22), inset 0 1px rgba(255, 255, 255, .55);
+}
+.hbadge::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: #0d1a2e;
+  animation: piscar 2.4s ease-in-out infinite;
+}
+.hbadge-update {
+  padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+  font: 600 11px/1.3 Montserrat, sans-serif; letter-spacing: .2px;
+  background: rgba(255, 255, 255, .13); color: rgba(255, 255, 255, .85);
+  border: 1px solid transparent;
+}
+/* Base com mais de 15 dias: o arquivo circula, e quem recebe precisa saber. */
+.hbadge-update.velha { background: rgba(245, 180, 0, .2); border-color: rgba(245, 180, 0, .55); color: #ffe08a; }
+
+.btn-icon {
+  width: 36px; height: 36px; border-radius: 10px; padding: 0;
+  background: rgba(255, 255, 255, .11); border: 1px solid rgba(255, 255, 255, .22);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08);
+  transition: transform .18s var(--curva), background-color .18s, box-shadow .18s;
+}
+.btn-icon:hover { background: rgba(255, 255, 255, .22); transform: translateY(-2px); box-shadow: 0 7px 18px rgba(0, 29, 63, .2); }
+.btn-icon:active { transform: scale(.94); }
+.btn-icon:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+#tema svg { transition: transform .35s var(--mola), opacity .2s; }
+#tema .lua { display: none; }
+:root[data-tema="claro"] #tema .lua { display: block; }
+:root[data-tema="claro"] #tema .sol { display: none; }
+#tema:hover svg { transform: rotate(-18deg) scale(1.08); }
+/* Botao do menu lateral: a coluna cheia e o painel aberto; a seta vira para
+   o lado em que o painel vai. */
+#recolher-painel .coluna { fill: currentColor; stroke: none; opacity: .3; transition: opacity .2s; }
+#recolher-painel .seta { transform-box: fill-box; transform-origin: center; transition: transform .35s var(--mola); }
+body.painel-recolhido #recolher-painel .coluna { opacity: 0; }
+body.painel-recolhido #recolher-painel .seta { transform: rotate(180deg); }
+
+#app { display: flex; flex: 1 1 auto; min-height: 0; position: relative; }
+
+/* ------------------------------------------------------------- PAINEL
+   Fica AO LADO do mapa, e nao flutuando com vidro desfocado por cima: o
+   backdrop-filter sobre um mapa em movimento obriga o navegador a repintar
+   tudo a cada quadro do arraste (ver MELHORIAS de 10/11/2026). */
+#painel {
+  width: var(--painel); flex: 0 0 var(--painel);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(22, 135, 255, .09), transparent 22rem),
+    radial-gradient(circle at 100% 100%, rgba(38, 215, 232, .05), transparent 20rem),
+    var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; overscroll-behavior: contain;
+  /* Reserva o lugar da barra: sem isto o painel "pula" quando a lista cresce. */
+  scrollbar-gutter: stable;
+  padding: 16px 13px 16px 15px;
+  display: flex; flex-direction: column; gap: 12px;
+  position: relative; z-index: 2;
+}
+#painel > * { flex-shrink: 0; }
+
+/* Menu lateral recolhido (so no computador; o celular tem o botao Filtros).
+   Recolhido ou voltando, o painel flutua por cima do mapa e so o transform
+   anima: o mapa muda de tamanho de uma vez e o app.js corrige a posicao,
+   para nada andar na tela (ver alternarPainelLateral). O z-index passa a
+   barra de status e a ficha, que ficam sob o painel enquanto ele desliza. */
+@media (width > 780px) {
+  #painel { transition: transform .3s var(--curva), visibility 0s; }
+  body.painel-recolhido #painel, body.painel-abrindo #painel {
+    position: absolute; inset: 0 auto 0 0; z-index: 1002; box-shadow: var(--shadow-lg);
+  }
+  body.painel-recolhido #painel {
+    transform: translateX(-101%); visibility: hidden;
+    transition: transform .3s var(--curva), visibility 0s linear .3s;
+  }
+}
+
+.secao {
+  position: relative; overflow: hidden;
+  background: linear-gradient(160deg, var(--card), color-mix(in srgb, var(--card) 94%, var(--cor-azul)));
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+  transition: border-color .25s, box-shadow .25s, transform .25s var(--curva);
+}
+/* O filete aparece ao passar o mouse, varrendo da esquerda. */
+.secao::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--filete);
+  transform: scaleX(0); transform-origin: left; transition: transform .45s var(--curva);
+}
+.secao:hover { border-color: color-mix(in srgb, var(--cor-azul) 30%, var(--border2)); box-shadow: var(--shadow); }
+.secao:hover::before { transform: scaleX(1); }
+
+.secao h2 {
+  display: flex; align-items: center; gap: 9px;
+  font: 800 10.5px/1.3 'Inter', sans-serif; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 11px;
+}
+/* Marca de mira antes do titulo. */
+.secao h2::before {
+  content: ''; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 2px;
+  border: 1.5px solid var(--cor-ciano); box-shadow: 0 0 8px rgba(38, 215, 232, .45);
+  transform: rotate(45deg);
+}
+.secao h2::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
+
+/* A busca por ponto e a resposta da tela: cartao em destaque, com uma linha
+   de varredura que desce de tempos em tempos. */
+#secao-perto {
+  border-color: color-mix(in srgb, var(--cor-ciano) 40%, transparent);
+  background: linear-gradient(140deg, var(--card), color-mix(in srgb, var(--cor-ciano) 9%, var(--card)));
+  box-shadow: 0 0 0 1px rgba(38, 215, 232, .06), 0 10px 34px rgba(0, 0, 0, .18);
+}
+#secao-perto::before { transform: none; height: 3px; }
+#secao-perto::after {
+  content: ''; position: absolute; left: 0; right: 0; top: -40%; height: 40%; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(38, 215, 232, .07), transparent);
+  animation: varredura 4.5s ease-in-out infinite;
+}
+#secao-perto h2 { color: var(--cor-ciano); }
+
+/* --------------------------------------------------------------- BUSCA */
+.busca-campo { position: relative; }
+.busca-campo svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+#entrada, .campo {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid var(--border2); border-radius: var(--rsm);
+  background: var(--card2); color: var(--text);
+  font: inherit; font-size: 13.5px;
+  transition: border-color var(--rapido), box-shadow var(--rapido), background-color var(--rapido);
+}
+#entrada { padding-left: 34px; }
+#entrada::placeholder { color: var(--muted); opacity: .8; }
+#entrada:hover, .campo:hover { border-color: color-mix(in srgb, var(--cor-azul) 60%, var(--border2)); }
+#entrada:focus, .campo:focus {
+  outline: none; border-color: var(--cor-azul);
+  box-shadow: 0 0 0 3px var(--blue-dim), 0 0 18px rgba(22, 135, 255, .18);
+  background: var(--card);
+}
+select.campo {
+  padding: 8px 32px 8px 11px; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a99ad' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+select.campo option { background: var(--card); color: var(--text); }
+
+.botoes { display: flex; gap: 8px; margin-top: 9px; }
+.botoes button {
+  flex: 1; padding: 9px 12px; border-radius: var(--rsm);
+  border: 1px solid var(--border2); background: transparent; color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.botoes button:hover { border-color: var(--cor-azul); color: var(--cor-azul); }
+.botoes .primario {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #0875da, #005bac); border-color: transparent; color: #fff;
+  box-shadow: 0 8px 22px rgba(0, 91, 172, .22);
+}
+.botoes .primario::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .25), transparent 70%);
+  transform: translateX(-120%); transition: transform .6s var(--curva);
+}
+.botoes .primario:hover { color: #fff; border-color: transparent; box-shadow: 0 12px 27px rgba(0, 91, 172, .34); filter: brightness(1.07); }
+.botoes .primario:hover::after { transform: translateX(120%); }
+
+/* Mensagem de status (neutra) e de erro (vermelha) sao diferentes: uma busca
+   que deu certo nao pode parecer falha (ANT-02, review de 10/11/2026). */
+.msg { font-size: 12.5px; margin-top: 8px; color: var(--muted); font-weight: 500; }
+.msg:empty { display: none; }
+.msg.ok { color: var(--cor-ciano); font-weight: 600; }
+.msg.erro { color: var(--cor-vermelho); font-weight: 600; }
+#perto-cabeca strong { color: var(--text); }
+#perto-cabeca .sub { font-size: 11.5px; }
+#perto-cabeca .perto-endereco { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+#perto-cabeca .perto-endereco.erro { color: var(--cor-vermelho); font-weight: 600; }
+#perto-endereco { flex: 1; font-size: 12.5px; padding-top: 7px; padding-bottom: 7px; }
+
+/* Pino da busca: 40 px de area de toque em volta do alvo de 16 px, para o
+   dedo pegar o pino e nao o mapa. Arrastando, o radar some e o alvo cresce. */
+.pino-arrastavel { display: flex; align-items: center; justify-content: center; cursor: grab; background: none; border: 0; }
+.pino-arrastavel .alvo-busca { margin: 0; }
+.pino-arrastavel.arrastando { cursor: grabbing; }
+.pino-arrastavel.arrastando .radar { display: none; }
+/* animation: none porque o "cravar" (fill both) prenderia o transform. */
+.pino-arrastavel.arrastando .alvo-busca { animation: none; transform: scale(1.25); }
+.msg code, .ficha-linha code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+
+/* --------------------------------------------------------------- CHIPS
+   A caixinha nativa fica (teclado e leitor de tela), invisivel; o estado
+   aparece na pilula inteira. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  position: relative; display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border: 1px solid var(--border2); border-radius: 999px;
+  background: var(--card2); color: var(--muted);
+  cursor: pointer; font-size: 12.5px; font-weight: 700;
+  user-select: none; white-space: nowrap;
+}
+.chip:hover { border-color: var(--cor-azul); color: var(--text); }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.chip:has(input:checked) {
+  border-color: color-mix(in srgb, var(--cor-azul) 70%, transparent);
+  background: var(--blue-dim); color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cor-azul) 30%, transparent), 0 0 14px rgba(22, 135, 255, .12);
+}
+.chip:has(input:focus-visible) { outline: 2px solid var(--cor-azul); outline-offset: 2px; }
+.chip .bolinha { transition: opacity var(--rapido), transform .3s var(--mola), box-shadow .3s; }
+.chip:has(input:checked) .bolinha { box-shadow: 0 0 0 1px rgba(0, 0, 0, .12), 0 0 9px currentColor; }
+.chip:not(:has(input:checked)) .bolinha { opacity: .3; transform: scale(.75); }
+.chip .n { color: var(--muted); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.bolinha { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
+
+.deslizante { margin-top: 12px; }
+.deslizante label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+.deslizante label strong { color: var(--cor-ciano); font-weight: 800; font-variant-numeric: tabular-nums; }
+.deslizante input[type=range] { width: 100%; accent-color: var(--cor-azul); cursor: pointer; }
+
+/* --------------------------------------------------------------- RESUMO */
+.resumo-total {
+  font: 900 34px/1.05 Montserrat, sans-serif; letter-spacing: -1px;
+  color: var(--amarelo-txt); font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px rgba(245, 180, 0, .22);
+}
+:root[data-tema="claro"] .resumo-total { text-shadow: none; }
+.resumo-total span { font: 700 13px/1 'Inter', sans-serif; letter-spacing: 0; color: var(--muted); text-shadow: none; }
+.resumo-bloco { margin-top: 16px; }
+.resumo-bloco h3 { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; }
+.barra-linha { display: grid; grid-template-columns: 96px 1fr 60px; align-items: center; gap: 9px; margin-bottom: 6px; font-size: 12.5px; font-weight: 600; }
+.barra-rotulo { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.barra-trilho { height: 8px; background: var(--card2); border-radius: 99px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--border); }
+/* A barra cresce do zero ao valor a cada filtro (so transform: nao refaz layout). */
+.barra-cheia {
+  display: block; height: 100%; border-radius: 99px; position: relative;
+  transform-origin: left center; animation: crescer .7s var(--curva) both;
+}
+.barra-cheia::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+  animation: brilho-barra 1.4s var(--curva) .5s both;
+}
+.barra-linha:nth-child(3) .barra-cheia { animation-delay: 40ms; }
+.barra-linha:nth-child(4) .barra-cheia { animation-delay: 80ms; }
+.barra-linha:nth-child(5) .barra-cheia { animation-delay: 120ms; }
+.barra-linha:nth-child(n+6) .barra-cheia { animation-delay: 160ms; }
+.barra-num { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+
+.legenda-titulo { font-weight: 800; margin-bottom: 6px; font-size: 12.5px; }
+.legenda-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; margin-bottom: 4px; }
+.quadro { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
+.nota { font-size: 11.5px; color: var(--muted); margin-top: 9px; line-height: 1.5; }
+.nota strong, .nota em { color: var(--text); }
+
+/* ---------------------------------------------------------------- LISTAS */
+.lista { display: flex; flex-direction: column; gap: 4px; }
+.lista-rolagem { max-height: 280px; overflow-y: auto; padding-right: 4px; overscroll-behavior: contain; contain: content; }
+#lista:not([hidden]) { animation: sobe .3s var(--curva) both; margin-top: 4px; }
+.lista-titulo { font-size: 12px; font-weight: 700; color: var(--muted); margin: 10px 0 5px; }
+.item-lista {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--rsm);
+  background: var(--card2); color: var(--text);
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  text-align: left; cursor: pointer; width: 100%;
+}
+.item-lista:hover { border-color: var(--cor-azul); background: var(--blue-dim); box-shadow: inset 3px 0 0 var(--cor-ciano); }
+.item-lista .sub { margin-left: auto; font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item-lista strong { font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Itens de uma lista nova entram em cascata. */
+.lista .item-lista { animation: sobe .32s var(--curva) both; }
+.lista .item-lista:nth-child(2) { animation-delay: 25ms; }
+.lista .item-lista:nth-child(3) { animation-delay: 50ms; }
+.lista .item-lista:nth-child(4) { animation-delay: 75ms; }
+.lista .item-lista:nth-child(5) { animation-delay: 100ms; }
+.lista .item-lista:nth-child(n+6) { animation-delay: 125ms; }
+
+/* Tabela "mais proxima por operadora": a resposta curta da busca por ponto. */
+.proximas { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; margin-top: 4px; }
+.proximas td { padding: 7px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; font-weight: 600; }
+.proximas tr { cursor: pointer; animation: sobe .32s var(--curva) both; }
+.proximas tr:nth-child(2) { animation-delay: 40ms; }
+.proximas tr:nth-child(3) { animation-delay: 80ms; }
+.proximas tr:nth-child(4) { animation-delay: 120ms; }
+.proximas tr:nth-child(n+5) { animation-delay: 160ms; }
+.proximas tr:last-child td { border-bottom: none; }
+/* Arrastando o pino ou o raio, a tabela e refeita a cada quadro: sem isto as
+   linhas reiniciariam a entrada (opacidade 0) e sumiriam durante o gesto. */
+.sem-animacao .proximas tr, .sem-animacao .lista .item-lista { animation: none; }
+.proximas td.num { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--cor-ciano); }
+.proximas tr:hover td { background: var(--blue-dim); }
+.proximas tr:hover td:first-child { border-radius: 8px 0 0 8px; box-shadow: inset 3px 0 0 var(--cor-ciano); }
+.proximas tr:hover td:last-child { border-radius: 0 8px 8px 0; }
+.proximas .vazio { color: var(--muted); font-weight: 500; font-style: italic; }
+
+.ger { display: inline-flex; gap: 3px; }
+.ger b { display: inline-block; min-width: 22px; text-align: center; padding: 0 4px; border-radius: 5px; font-size: 10.5px; font-weight: 800; line-height: 17px; color: #fff; }
+.ger b.nao { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border2); font-weight: 600; }
+
+/* ------------------------------------------------------------------ MAPA
+   #palco segura o mapa e o que flutua sobre ele (ficha, barra de status,
+   seletor de base). A grade e a vinheta ficam por cima de tudo, sem pegar
+   clique; o z-index 0 do #mapa isola as camadas do Leaflet. */
+#palco { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+#mapa { position: absolute; inset: 0; z-index: 0; background: var(--card2); }
+#palco::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(3, 8, 16, .55) 100%),
+    repeating-linear-gradient(0deg, rgba(38, 215, 232, .045) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(90deg, rgba(38, 215, 232, .045) 0 1px, transparent 1px 56px);
+}
+:root[data-tema="claro"] #palco::after {
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(0, 45, 100, .1) 100%);
+}
+
+/* O canvas nao pega o clique: quem trata e o mapa, que acha a antena mais
+   proxima do ponto clicado. */
+.camada-antenas { pointer-events: none; transition: opacity .22s var(--curva); }
+/* So em voo longo (escala maior que 4x) o desenho pronto some: esticado
+   demais ele vira borrao. No zoom comum ele acompanha o mapa. */
+.camada-antenas.em-zoom { opacity: 0; transition: none; }
+
+.leaflet-container { background: var(--card2); font: inherit; }
+.leaflet-tile-pane .tile-limpo { filter: var(--filtro-limpo); }
+.leaflet-touch .leaflet-bar, .leaflet-bar {
+  border: 1px solid var(--border2); border-radius: var(--rsm);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.leaflet-bar a, .leaflet-touch .leaflet-bar a {
+  background: var(--vidro); color: var(--text); border-bottom: 1px solid var(--border);
+  transition: background-color var(--rapido), color var(--rapido);
+}
+.leaflet-bar a:last-child { border-bottom: none; }
+.leaflet-bar a:hover, .leaflet-bar a:focus { background: var(--cor-azul); color: #fff; }
+.leaflet-bar a.leaflet-disabled { background: var(--card2); color: var(--faint); }
+.leaflet-control-attribution, .leaflet-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--card) 78%, transparent); color: var(--muted); border-top-left-radius: 6px;
+}
+.leaflet-control-attribution a { color: var(--cor-azul); }
+
+/* Raio da busca e feixes ate a mais proxima de cada operadora: SVG (e nao
+   canvas) para o tracejado poder correr em CSS. O Leaflet poe a cor da
+   operadora no atributo stroke; o CSS so mexe no tracejado. */
+.raio-busca { stroke: var(--cor-ciano); stroke-width: 1.6; stroke-dasharray: 6 7; fill: var(--cor-ciano); fill-opacity: .045; animation: tracejado 1.4s linear infinite; }
+.feixe { stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 3 9; opacity: .95; animation: fluxo .9s linear infinite, acender .5s var(--curva) both; }
+
+/* Ponto pesquisado: radar girando sobre o alvo. */
+.alvo-busca {
+  position: relative; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border-radius: 50%; background: var(--cor-ciano);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .92), 0 0 0 5px var(--cor-ciano), 0 0 22px var(--cor-ciano);
+  animation: cravar .4s var(--mola) both;
+}
+.alvo-busca::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid var(--cor-ciano); animation: pulso 2s ease-out .4s infinite; pointer-events: none;
+}
+.alvo-busca .radar {
+  position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; margin: -75px; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 75%, rgba(38, 215, 232, .32) 99%, transparent 100%);
+  animation: girar 3.2s linear infinite, aparecer .6s var(--curva) both; pointer-events: none;
+}
+
+/* ERB selecionada: pulso duplo na cor da operadora (marcador CSS; o canvas
+   nao e redesenhado para animar). */
+.pulso-erb {
+  --c: var(--cor-ciano);
+  position: relative; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .95), 0 0 0 4.5px rgba(0, 0, 0, .35), 0 0 20px var(--c);
+  animation: cravar .38s var(--mola) both;
+}
+.pulso-erb::before, .pulso-erb::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid var(--c); animation: pulso 1.8s ease-out infinite; pointer-events: none;
+}
+.pulso-erb::after { animation-delay: .9s; }
+
+/* Mira que segue o mouse sobre a antena mais proxima. */
+.mira {
+  position: relative;
+  width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  border: 1.5px solid var(--cor-ciano); box-shadow: 0 0 12px rgba(38, 215, 232, .5);
+  opacity: 0; transform: scale(.6); transition: opacity .14s, transform .2s var(--mola);
+  pointer-events: none;
+}
+.mira.ligada { opacity: 1; transform: none; }
+.mira::before, .mira::after { content: ''; position: absolute; background: var(--cor-ciano); }
+.mira::before { left: 50%; top: -6px; bottom: -6px; width: 1.5px; margin-left: -.75px; -webkit-mask: linear-gradient(#000 0 5px, transparent 5px calc(100% - 5px), #000 0); mask: linear-gradient(#000 0 5px, transparent 5px calc(100% - 5px), #000 0); }
+.mira::after { top: 50%; left: -6px; right: -6px; height: 1.5px; margin-top: -.75px; -webkit-mask: linear-gradient(90deg, #000 0 5px, transparent 5px calc(100% - 5px), #000 0); mask: linear-gradient(90deg, #000 0 5px, transparent 5px calc(100% - 5px), #000 0); }
+
+/* Dica ao passar o mouse. */
+#dica {
+  position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none;
+  padding: 7px 10px; border-radius: 10px; max-width: 260px;
+  background: var(--vidro); border: 1px solid var(--border2);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-lg); font-size: 12px; font-weight: 600;
+  opacity: 0; transition: opacity .12s;
+  will-change: transform;
+}
+#dica.ligada { opacity: 1; }
+#dica .dica-op { font: 900 13px/1.2 Montserrat, sans-serif; display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+#dica .dica-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+
+/* Barra de status: coordenada sob o cursor, zoom e quantas na tela. */
+#hud {
+  position: absolute; left: 14px; bottom: 22px; z-index: 3;
+  display: flex; align-items: center; gap: 0;
+  border-radius: 11px; overflow: hidden;
+  background: var(--vidro); border: 1px solid var(--border2);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-lg);
+  font: 600 11.5px/1 ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--muted);
+  animation: sobe .5s var(--curva) .3s both;
+}
+#hud span { padding: 8px 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#hud span + span { border-left: 1px solid var(--border); }
+#hud b { color: var(--text); font-weight: 700; }
+#copiar-link {
+  border: none; border-left: 1px solid var(--border); background: transparent; color: var(--cor-ciano);
+  font: 700 11.5px/1 'Inter', sans-serif; padding: 8px 12px; cursor: pointer;
+  transition: background-color var(--rapido), color var(--rapido);
+}
+#copiar-link:hover { background: var(--ciano-dim); color: var(--text); }
+
+/* Lote de pontos. */
+#lote-texto {
+  display: block; resize: vertical; min-height: 78px; max-height: 260px;
+  font: 12px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+.botao-arquivo {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  padding: 9px 12px; border-radius: var(--rsm); border: 1px solid var(--border2);
+  font-size: 13px; font-weight: 700; cursor: pointer; color: var(--text);
+  transition: border-color var(--rapido), color var(--rapido), transform var(--rapido);
+}
+.botao-arquivo:hover { border-color: var(--cor-azul); color: var(--cor-azul); transform: translateY(-1px); }
+.botao-arquivo:focus-within { outline: 2px solid var(--cor-azul); outline-offset: 2px; }
+.botao-arquivo input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.lote-tabela td { padding: 6px 5px; }
+.lote-tabela tr { cursor: default; }
+.lote-tabela .lote-cab { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.lote-tabela td.num { color: var(--text); }
+#hud .hud-vivo::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%;
+  background: var(--cor-verde); box-shadow: 0 0 8px var(--cor-verde); vertical-align: 1px;
+  animation: piscar 2.4s ease-in-out infinite;
+}
+
+/* ----------------------------------------------------------------- FICHA */
+#ficha {
+  position: absolute; right: 14px; top: 14px; z-index: 4;
+  width: 324px; max-width: calc(100% - 28px);
+  max-height: calc(100% - 96px); overflow-y: auto;
+  background: var(--vidro);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--border2); border-radius: var(--r);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(22, 135, 255, .06);
+  padding: 15px 15px 13px;
+  overscroll-behavior: contain;
+  transform-origin: top right;
+  animation: crPopIn .3s var(--mola) both;
+}
+#ficha::before { content: ''; display: block; height: 3px; margin: -15px -15px 12px; background: var(--filete); }
+.ficha-topo { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.ficha-op { font: 900 18px/1.15 Montserrat, sans-serif; letter-spacing: -.3px; }
+.ficha-num { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; color: var(--muted); }
+#fechar-ficha {
+  margin-left: auto; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--card2); border: 1px solid var(--border); color: var(--muted);
+  font-size: 19px; line-height: 1; cursor: pointer;
+}
+#fechar-ficha:hover { color: #fff; background: var(--cor-vermelho); border-color: var(--cor-vermelho); transform: rotate(90deg); }
+.ficha-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 0; font-size: 13px; animation: sobe .3s var(--curva) both; }
+.ficha-linha:nth-of-type(2) { animation-delay: 30ms; }
+.ficha-linha:nth-of-type(3) { animation-delay: 60ms; }
+.ficha-linha:nth-of-type(4) { animation-delay: 90ms; }
+.ficha-linha:nth-of-type(n+5) { animation-delay: 120ms; }
+.ficha-linha span { color: var(--muted); font-weight: 600; flex: 0 0 auto; }
+.ficha-linha strong { text-align: right; font-weight: 700; }
+.ficha-linha code { font-size: 11.5px; text-align: right; word-break: break-all; color: var(--cor-ciano); }
+.ficha-linha.tecnica { font-size: 12px; }
+.ficha-endereco { font-size: 12.5px; margin: 2px 0 8px; line-height: 1.45; }
+.ficha-links { display: flex; gap: 8px; margin-top: 11px; font-size: 12.5px; }
+.ficha-links a {
+  flex: 1; text-align: center; text-decoration: none; padding: 7px 10px; border-radius: var(--rsm);
+  border: 1px solid var(--border2); background: var(--card2); color: var(--cor-azul); font-weight: 700;
+  transition: border-color var(--rapido), background-color var(--rapido), color var(--rapido), transform var(--rapido), box-shadow var(--rapido);
+}
+.ficha-links a:hover { background: var(--cor-azul); border-color: var(--cor-azul); color: #fff; transform: translateY(-1px); box-shadow: 0 6px 18px var(--blue-glow); }
+.ficha-alerta {
+  display: flex; flex-direction: column; gap: 2px; margin: 8px 0 6px; padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--cor-laranja) 40%, transparent);
+  border-left: 3px solid var(--cor-laranja); border-radius: var(--rsm);
+  background: color-mix(in srgb, var(--cor-laranja) 12%, var(--card));
+}
+.ficha-alerta strong { color: var(--cor-laranja); font-size: 13px; font-weight: 800; }
+.ficha-alerta span { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.ficha-vizinhos { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------- RODAPE */
+#rodape {
+  margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  display: flex; flex-direction: column; gap: 3px;
+}
+#rodape span span { color: var(--text); font-variant-numeric: tabular-nums; }
+.creditos { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.55; }
+.creditos strong { color: var(--text); font-weight: 700; }
+#fonte {
+  border: 1px solid color-mix(in srgb, var(--cor-azul) 30%, transparent); border-radius: var(--rsm);
+  padding: 10px 12px; font-size: 11.5px; line-height: 1.55; color: var(--muted); background: var(--blue-dim);
+}
+#fonte strong { display: block; color: var(--cor-azul); font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+#fonte a { color: var(--cor-azul); font-weight: 700; word-break: break-all; }
+
+/* Seletor de mapa base: o segmentado do painel da comissao. */
+.controle-mapa {
+  position: absolute; right: 14px; bottom: 26px; z-index: 3;
+  display: flex; gap: 2px; padding: 3px;
+  background: var(--vidro); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid var(--border2); border-radius: 11px; box-shadow: var(--shadow-lg);
+  animation: sobe .5s var(--curva) .35s both;
+}
+.chip-botao { border: none; background: none; color: var(--muted); font: 700 12.5px/1 'Inter', sans-serif; padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.chip-botao:hover { background: var(--card2); color: var(--text); }
+.chip-botao.ativo { background: linear-gradient(135deg, #0875da, #005bac); color: #fff; box-shadow: 0 2px 12px var(--blue-glow); }
+
+/* --------------------------------------------------------------- CELULAR */
+#alternar-painel {
+  display: none; position: absolute; left: 12px; bottom: 70px; z-index: 1001;
+  padding: 11px 18px; border-radius: 999px; border: none;
+  background: linear-gradient(135deg, #0875da, #005bac); color: #fff;
+  font: 700 14px/1 Montserrat, sans-serif; box-shadow: 0 6px 22px var(--blue-glow); cursor: pointer;
+}
+
+/* ------------------------------------------------------------ MOVIMENTO
+   So propriedades que o navegador anima sem refazer layout: cor, borda,
+   opacidade e transform. */
+.chip, .botoes button, .item-lista, .chip-botao, .proximas td, #fechar-ficha, #alternar-painel {
+  transition: border-color var(--rapido) var(--curva), background-color var(--rapido) var(--curva),
+              color var(--rapido) var(--curva), box-shadow var(--rapido) var(--curva),
+              transform var(--rapido) var(--curva), filter var(--rapido);
+}
+.botoes button:hover, #alternar-painel:hover { transform: translateY(-1px); }
+.item-lista:hover { transform: translateX(2px); }
+.botoes button:active, .item-lista:active, .chip:active, .chip-botao:active, #alternar-painel:active { transform: scale(.97); }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--cor-azul); outline-offset: 2px; }
+
+/* Os cartoes do painel sobem em sequencia ao abrir. */
+#painel > * { animation: sobe .5s var(--curva) both; }
+#painel > :nth-child(2) { animation-delay: 50ms; }
+#painel > :nth-child(3) { animation-delay: 100ms; }
+#painel > :nth-child(4) { animation-delay: 150ms; }
+#painel > :nth-child(5) { animation-delay: 200ms; }
+#painel > :nth-child(6) { animation-delay: 250ms; }
+#painel > :nth-child(7) { animation-delay: 300ms; }
+#painel > :nth-child(n+8) { animation-delay: 350ms; }
+#painel > #secao-perto:not([hidden]) { animation: crPopIn .34s var(--mola) both; transform-origin: top center; }
+#cobertura-detalhe:not([hidden]) { animation: sobe .3s var(--curva) both; }
+
+@keyframes sobe { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes crPopIn { from { opacity: 0; transform: scale(.94) translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes crescer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes brilho-barra { from { transform: translateX(-100%); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+@keyframes cravar { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes pulso { 0% { transform: scale(.8); opacity: .9; } 100% { transform: scale(2.8); opacity: 0; } }
+@keyframes onda { 0% { transform: scale(.35); opacity: 0; } 15% { opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+@keyframes girar { to { transform: rotate(360deg); } }
+@keyframes aparecer { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes varrer { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+@keyframes varredura { 0%, 15% { transform: translateY(0); } 85%, 100% { transform: translateY(360%); } }
+@keyframes reflexo { 0%, 70% { transform: translateX(0); } 100% { transform: translateX(360%); } }
+@keyframes piscar { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes tracejado { to { stroke-dashoffset: -26; } }
+@keyframes fluxo { to { stroke-dashoffset: -24; } }
+@keyframes acender { from { opacity: 0; } to { opacity: .95; } }
+
+@media (max-width: 780px) {
+  .header { padding: 0 12px; }
+  .logo-name { font-size: 17px; }
+  .logo-tag { display: none; }
+  #painel {
+    position: absolute; inset: 0 auto 0 0; z-index: 1002;
+    width: min(88vw, var(--painel));
+    transform: translateX(-101%); transition: transform .3s var(--curva);
+    will-change: transform; box-shadow: var(--shadow-lg);
+  }
+  body.painel-aberto #painel { transform: none; }
+  #alternar-painel { display: block; }
+  #recolher-painel { display: none; }
+  #ficha { right: 10px; left: 10px; top: 10px; width: auto; }
+  .controle-mapa { right: 10px; bottom: 70px; }
+  #hud { left: 10px; bottom: 118px; }
+  #hud .hud-coord { display: none; }
+  #dica { display: none; }
+}
+@media (max-width: 480px) {
+  .hbadge { display: none; }
+}
+
+/* Quem pediu menos movimento no sistema operacional nao recebe nenhum. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .alvo-busca .radar, .header .reflexo { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lista-rolagem, #ficha { scroll-behavior: smooth; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="boot" role="status" aria-live="polite">
+  <div class="boot-centro">
+    <div class="boot-radar" aria-hidden="true"><i></i><i></i><i></i><b></b><s></s></div>
+    <div class="boot-titulo">Mapa de <em>Antenas</em> Anatel</div>
+    <div class="boot-barra" aria-hidden="true"></div>
+    <div class="boot-sub" id="boot-msg">Lendo as ERBs licenciadas na Anatel</div>
+  </div>
+</div>
+
+<header class="header">
+  <span class="reflexo" aria-hidden="true"></span>
+  <div class="header-esq">
+    <button id="recolher-painel" class="btn-icon" type="button" aria-controls="painel" aria-expanded="true"
+            title="Esconder o menu lateral (mapa em tela cheia)" aria-label="Esconder o menu lateral">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="coluna" d="M5.5 4H9v16H5.5A2.5 2.5 0 0 1 3 17.5v-11A2.5 2.5 0 0 1 5.5 4z"/><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/><path class="seta" d="M16.2 9.5l-2.5 2.5 2.5 2.5"/></svg>
+    </button>
+    <div class="header-titles">
+      <h1 class="logo-name">Mapa de <em>Antenas</em> Anatel</h1>
+      <div class="logo-tag">ERBs do SMP · estacoes licenciadas na Anatel, por operadora</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="hbadge-update" id="idade-base" title="Data da base da Anatel usada neste arquivo">Base —</span>
+    <span class="hbadge" title="Base aberta da Anatel, sem dado pessoal">Dado publico</span>
+    <button id="tema" class="btn-icon" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+      <svg class="lua" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      <svg class="sol" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="app">
+  <aside id="painel">
+    <div class="secao">
+      <h2>Encontrar</h2>
+      <div class="busca-campo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="entrada" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Endereco, CEP, municipio, n&ordm; da ERB ou -27.59, -48.55">
+      </div>
+      <div class="botoes">
+        <button id="buscar" class="primario" type="button">Buscar</button>
+        <button id="limpar" type="button">Limpar</button>
+      </div>
+      <div id="erro" class="msg" role="status" aria-live="polite"></div>
+      <div id="lista" class="lista lista-rolagem" hidden></div>
+      <div class="nota">Endereco, CEP ou coordenada: lista as antenas em volta. Um clique
+        no mapa marca um pino num ponto qualquer, e o pino pode ser arrastado. CEP e
+        endereco sao consultados no ViaCEP e no OpenStreetMap e caem na rua, nao no numero:
+        arraste o pino ate a casa certa. Coordenada e pino nao saem do navegador.</div>
+    </div>
+
+    <div class="secao" id="secao-perto" hidden>
+      <h2>Antenas perto do ponto</h2>
+      <div id="perto-cabeca" class="msg" style="margin-top:0"></div>
+      <div class="botoes"><button id="perto-endereco" type="button" hidden
+        title="Consulta o OpenStreetMap com a coordenada do pino">Qual o endereco deste ponto?</button></div>
+      <div class="deslizante">
+        <label>Raio <strong id="raio-valor">5 km</strong></label>
+        <input id="raio" type="range" min="1" max="30" value="5" step="1" aria-label="Raio da busca">
+      </div>
+      <div class="lista-titulo">Mais proxima de cada operadora (respeita os filtros):</div>
+      <table class="proximas" id="perto-operadoras"></table>
+      <div class="lista-titulo" id="perto-titulo"></div>
+      <div id="perto-lista" class="lista lista-rolagem"></div>
+      <div class="botoes"><button id="perto-fechar" type="button">Fechar a busca</button></div>
+    </div>
+
+    <div class="secao" id="secao-lote">
+      <h2>Lote de pontos</h2>
+      <textarea id="lote-texto" class="campo" rows="4" spellcheck="false"
+                placeholder="Uma coordenada por linha. Ex.:&#10;ponto 1; -27,5954; -48,5480&#10;-26.30, -48.84"></textarea>
+      <div class="botoes">
+        <button id="lote-processar" class="primario" type="button">Processar</button>
+        <label class="botao-arquivo" title="CSV ou TXT com uma coordenada por linha">Abrir CSV
+          <input id="lote-arquivo" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
+      </div>
+      <div id="lote-msg" class="msg" role="status" aria-live="polite"></div>
+      <div id="lote-resultado" hidden>
+        <table class="proximas lote-tabela" id="lote-resumo"></table>
+        <div class="botoes">
+          <button id="lote-baixar" type="button">Baixar CSV</button>
+          <button id="lote-limpar" type="button">Limpar lote</button>
+        </div>
+      </div>
+      <div class="nota">A mais proxima de cada operadora em cada ponto, ate 50 km, respeitando
+        os filtros. Os pontos ficam <strong>so neste navegador</strong>: nada e enviado nem gravado no
+        arquivo do mapa. Proximidade nao garante sinal.</div>
+    </div>
+
+    <div class="secao">
+      <h2>Colorir os pontos por</h2>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="modo" value="operadora" checked>Operadora</label>
+        <label class="chip"><input type="radio" name="modo" value="geracao">Geracao mais alta</label>
+      </div>
+      <div id="legenda-modo" style="margin-top:10px"></div>
+    </div>
+
+    <div class="secao">
+      <h2>Operadoras no mapa</h2>
+      <div class="chips" id="filtro-operadoras"></div>
+    </div>
+
+    <div class="secao">
+      <h2>Geracoes</h2>
+      <div class="chips" id="filtro-geracoes"></div>
+      <div class="nota">Mostra a ERB que tem <em>pelo menos uma</em> das geracoes
+        marcadas. Deixe so o <strong>3G</strong> para ver onde ha 3G de voz.</div>
+    </div>
+
+    <div class="secao">
+      <h2>Estado (UF)</h2>
+      <select id="filtro-uf" class="campo"></select>
+    </div>
+
+    <div class="secao">
+      <h2>Mancha de cobertura</h2>
+      <div class="chips" id="cobertura-operadoras"></div>
+      <div id="cobertura-detalhe" hidden>
+        <div class="deslizante">
+          <label>Camada</label>
+          <select id="cobertura-camada" class="campo"></select>
+        </div>
+        <div class="deslizante">
+          <label>Transparencia <strong id="cobertura-opacidade-valor">60%</strong></label>
+          <input id="cobertura-opacidade" type="range" min="15" max="100" value="60" step="5"
+                 aria-label="Opacidade da mancha">
+        </div>
+        <div id="cobertura-legenda"></div>
+      </div>
+      <div class="nota">A antena diz onde esta a <em>torre</em>. A mancha diz ate onde a
+        operadora <em>afirma</em> que o sinal chega. Uma torre a 2 km com um morro no meio
+        nao cobre.</div>
+    </div>
+
+    <div class="secao">
+      <h2>Resumo do filtro</h2>
+      <div id="resumo"></div>
+      <div id="aviso-fora" class="msg" hidden></div>
+    </div>
+
+    <div id="fonte">
+      <strong>Dado publico</strong>
+      Estacoes do SMP licenciadas na Anatel. Uma ERB licenciada nao garante
+      que esteja ligada, nem que cubra o endereco.
+      <span id="fonte-url"></span>
+    </div>
+
+    <div id="rodape">
+      <span>Base Anatel: <span id="base-info">—</span></span>
+      <span><span id="total-info">—</span> ERBs no arquivo</span>
+      <span>carregado em <span id="tempo">—</span></span>
+      <footer class="creditos">
+        Ideia e motor original: <strong>Cliver Domingos Guisolphi</strong>.<br>
+        Aprimorado e mantido por <strong>João Victor Faraco</strong>.
+      </footer>
+    </div>
+  </aside>
+
+  <div id="palco">
+    <main id="mapa"></main>
+    <div id="dica" aria-hidden="true"></div>
+    <div id="hud" aria-live="off">
+      <span class="hud-vivo"><b id="contador">—</b></span>
+      <span class="hud-coord" id="hud-coord">—</span>
+      <span id="hud-zoom">z —</span>
+      <button id="copiar-link" type="button" title="Copia um link que reabre esta mesma vista (regiao, ponto e filtros)">Copiar link</button>
+    </div>
+    <div id="ficha" hidden></div>
+    <div id="seletor-base" class="controle-mapa" role="group" aria-label="Mapa base"></div>
+  </div>
+</div>
+
+<button id="alternar-painel" type="button">Filtros</button>
+
+<script>/*INSERIR:LEAFLET_JS*/</script>
+<script>/*INSERIR:DADOS*/</script>
+<script>/*INSERIR:GEO_JS*/</script>
+<script>/*INSERIR:ENDERECO_JS*/</script>
+<script>/*INSERIR:COBERTURA_JS*/</script>
+<script>/*INSERIR:APP_JS*/</script>
+</body>
+</html>

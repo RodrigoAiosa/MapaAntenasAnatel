@@ -1,0 +1,24 @@
+# Base da Anatel: ~90 MB, baixada de novo pela opcao 1 do INICIAR.bat.
+dados_anatel/
+
+# Saidas geradas (refeitas pela opcao 2). Sao dado publico, mas grandes.
+MapaDeAntenas*.html
+Antenas_SMP_Anatel_*.xlsx
+RELATORIO_GERACAO*.txt
+
+__pycache__/
+*.pyc
+
+# Instrucoes locais de agentes e do grafo: ficam so na maquina.
+CLAUDE.md
+AGENTS.md
+.graphifyignore
+
+# Vercel / build
+public/
+_build/
+.vercel/
+.env
+.env.*
+!.env.example
+node_modules/

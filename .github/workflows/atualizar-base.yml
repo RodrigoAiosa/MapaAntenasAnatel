@@ -1,0 +1,30 @@
+# Refaz o deploy na Vercel toda segunda com a base do dia da Anatel.
+# O build (scripts/vercel_build.py) baixa a base e gera o mapa. Se a
+# conferência "lidas = no mapa + fora" falhar, a Vercel mantém o deploy anterior.
+#
+# Configurar uma vez: Vercel > Project > Settings > Git > Deploy Hooks
+# (branch main) e salvar a URL como secret VERCEL_DEPLOY_HOOK_URL no GitHub
+# (Settings > Secrets and variables > Actions).
+name: Atualizar base da Anatel
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # segunda, 06:00 de Brasília
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar deploy na Vercel
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::Secret VERCEL_DEPLOY_HOOK_URL não configurado."; exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK"
+          echo "Deploy disparado."

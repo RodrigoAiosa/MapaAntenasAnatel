@@ -1,0 +1,15 @@
+{
+  "name": "mapa-antenas-anatel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mapa das ERBs de telefonia celular licenciadas na Anatel, pronto para a Vercel.",
+  "license": "MIT",
+  "repository": "github:RodrigoAiosa/MapaAntenasAnatel",
+  "scripts": {
+    "build": "python3 scripts/vercel_build.py",
+    "build:sc": "python3 scripts/vercel_build.py --uf SC",
+    "test": "python3 tests/test_antenas.py && node tests/geo_test.cjs",
+    "dev": "python3 scripts/servir.py"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sobre, fontes e privacidade · Mapa de Antenas Anatel</title>
+<meta name="description" content="Fonte dos dados, limites e política de privacidade do Mapa de Antenas Anatel.">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+:root{color-scheme:dark light}
+body{margin:0;background:#0b0f14;color:#e6edf3;font:16px/1.65 system-ui,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:#26d7e8}h1{margin-top:0}h2{margin-top:2rem}
+code{background:#161d27;padding:.1em .35em;border-radius:4px}
+@media (prefers-color-scheme:light){body{background:#fff;color:#14202b}code{background:#eef2f6}a{color:#0a6c8a}}
+</style></head>
+<body><main>
+<p><a href="/">← Voltar ao mapa</a></p>
+<h1>Sobre, fontes e privacidade</h1>
+
+<h2>De onde vêm os dados</h2>
+<p>Base aberta da <strong>Anatel</strong> (painel <em>Outorga e Licenciamento → Estações</em>, Serviço Móvel Pessoal).
+Base de referência desta publicação: <strong>{{DATA_ANATEL}}</strong>. ERBs no mapa: <strong>{{NO_MAPA}}</strong>.
+O site é refeito toda semana com a base do dia. Estado atual em <a href="/status.json"><code>/status.json</code></a>.</p>
+{{LINK_PLANILHA}}
+
+<h2>Limites</h2>
+<ul>
+<li><strong>Licenciada não quer dizer ligada.</strong> A base mostra a licença da operadora, não se a antena está no ar nem o alcance do sinal.</li>
+<li>Algumas ERBs têm coordenadas divergentes na base; elas aparecem com aviso de "posição incerta".</li>
+<li>A busca por CEP ou endereço localiza a rua, não o número da casa. Arraste o pino para ajustar.</li>
+</ul>
+
+<h2>Privacidade (LGPD)</h2>
+<ul>
+<li>Este site <strong>não usa cookies, não tem cadastro e não rastreia ninguém</strong>. Não há dado pessoal na base.</li>
+<li>Pino, filtros e lote de pontos ficam <strong>só no seu navegador</strong>. Nada é enviado ao servidor deste site.</li>
+<li>Ao <em>Buscar</em> um CEP ou endereço, o texto é enviado a serviços de terceiros: <a href="https://viacep.com.br">ViaCEP</a> e o <a href="https://nominatim.openstreetmap.org">Nominatim (OpenStreetMap)</a>. O botão "Qual o endereço deste ponto?" envia a coordenada do pino ao Nominatim.</li>
+<li>O desenho do mapa vem do OpenStreetMap, e a mancha de cobertura vem dos servidores públicos das operadoras. Esses servidores veem o seu IP, como em qualquer site.</li>
+</ul>
+
+<h2>Créditos e licença</h2>
+<p>Mapa criado a partir do projeto <a href="https://github.com/JvFaraco/mapa-antenas-anatel">mapa-antenas-anatel</a>
+de João Victor Faraco, que parte do motor original de Cliver Domingos Guisolphi. Código sob licença MIT.
+Mapas © colaboradores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>.</p>
+</main></body></html>
