@@ -878,6 +878,22 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .ficha-nota { padding: 6px 9px 8px; font-size: 11px; color: var(--muted); }
 .ficha-link { align-self: flex-start; color: var(--cor-ciano); font-weight: 600; text-decoration: none; }
 .ficha-link:hover { text-decoration: underline; }
+
+/* Cobertura do municipio */
+#terr-resultado { margin-top: 10px; }
+.terr-cartao { background: var(--card2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 12px; }
+.terr-grande { font-size: 28px; font-weight: 800; line-height: 1; color: var(--cor-verde); }
+.terr-grande.baixo { color: var(--cor-vermelho); }
+.terr-grande.medio { color: var(--cor-ambar); }
+.terr-rotulo { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+.terr-barra { height: 10px; border-radius: 6px; background: rgba(224, 80, 80, .35); overflow: hidden; }
+.terr-barra > i { display: block; height: 100%; background: var(--cor-verde); }
+.terr-detalhe { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.terr-rank { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+.terr-rank td, .terr-rank th { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+.terr-rank td.num, .terr-rank th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.terr-rank tbody tr { cursor: pointer; }
+.terr-rank tbody tr:hover { background: var(--ciano-dim); }
 </style>
 </head>
 
@@ -1003,6 +1019,27 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
         arquivo do mapa. Proximidade nao garante sinal.</div>
     </div>
 
+    <div class="secao" id="secao-territorio" hidden>
+      <h2>Cobertura do município</h2>
+      <select id="terr-uf" class="campo" aria-label="Estado"></select>
+      <select id="terr-mun" class="campo" aria-label="Município" disabled></select>
+      <select id="terr-raio" class="campo" aria-label="Distância até a antena">
+        <option value="2">Antena a até 2 km</option>
+        <option value="3">Antena a até 3 km</option>
+        <option value="5" selected>Antena a até 5 km</option>
+        <option value="7">Antena a até 7 km</option>
+      </select>
+      <div class="botoes">
+        <button id="terr-calcular" class="primario" type="button" disabled>Calcular</button>
+        <button id="terr-ranking" type="button" disabled>Ranking do estado</button>
+      </div>
+      <div id="terr-msg" class="msg" role="status" aria-live="polite"></div>
+      <div id="terr-resultado" hidden></div>
+      <div class="nota">Estimativa por <strong>distância até uma antena licenciada</strong>, respeitando os
+        filtros de operadora e geração. Não mede sinal (relevo, frequência e prédios ficam de fora) e
+        conta só a área, não os moradores. Contornos: IBGE.</div>
+    </div>
+
     <div class="secao">
       <h2>Colorir os pontos por</h2>
       <div class="chips">
@@ -1091,6 +1128,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 <script>/*INSERIR:GEO_JS*/</script>
 <script>/*INSERIR:ENDERECO_JS*/</script>
 <script>/*INSERIR:COBERTURA_JS*/</script>
+<script>/*INSERIR:TERRITORIO_JS*/</script>
 <script>/*INSERIR:APP_JS*/</script>
 <script>/*INSERIR:PAINEL_JS*/</script>
 <script>/*INSERIR:TOUR_JS*/</script>

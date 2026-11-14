@@ -162,6 +162,7 @@ def montar_html(destino, estacoes, info, origem):
         "GEO_JS": lambda: ler("app/js/geo.js"),
         "ENDERECO_JS": lambda: ler("app/js/endereco.js"),
         "COBERTURA_JS": lambda: ler("app/js/cobertura.js"),
+        "TERRITORIO_JS": lambda: ler("app/js/territorio.js"),
         "APP_JS": lambda: ler("app/js/app.js"),
         "PAINEL_JS": lambda: ler("app/js/painel.js"),
         "TOUR_JS": lambda: ler("app/js/tour.js"),

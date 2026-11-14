@@ -196,6 +196,16 @@ def main(argv=None):
         with open(PUBLIC / "robots.txt", "a", encoding="utf-8") as f:
             f.write("Sitemap: %s/sitemap.xml\n" % base)
 
+    # Contornos municipais do IBGE, para o painel "Cobertura do municipio". Nao e fatal.
+    n_malhas = 0
+    if os.environ.get("SEM_MALHAS") != "1":
+        try:
+            sys.path.insert(0, str(RAIZ / "scripts"))
+            import baixar_malhas
+            n_malhas = len(baixar_malhas.executar(PUBLIC / "dados" / "malha"))
+        except Exception as e:
+            print("aviso: malhas do IBGE nao baixadas (%s)" % e)
+
     escrever(PUBLIC / "status.json", json.dumps({
         "projeto": TITULO,
         "base_anatel": origem.get("data_anatel"),
@@ -203,6 +213,7 @@ def main(argv=None):
         "gerado_em_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "recorte_uf": args.uf or None,
         "estacoes": conferencia,
+        "malhas_ibge_ufs": n_malhas,
         "commit": os.environ.get("VERCEL_GIT_COMMIT_SHA"),
     }, ensure_ascii=False, indent=2) + "\n")
 

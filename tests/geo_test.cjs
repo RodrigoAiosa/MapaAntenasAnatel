@@ -8,6 +8,7 @@
 const assert = require('assert');
 const path = require('path');
 const Geo = require(path.join(__dirname, '..', 'app', 'js', 'geo.js'));
+const Territorio = require(path.join(__dirname, '..', 'app', 'js', 'territorio.js'));
 const Cobertura = require(path.join(__dirname, '..', 'app', 'js', 'cobertura.js'));
 
 let falhas = 0;
@@ -325,6 +326,53 @@ caso('rumo: pontos cardeais', () => {
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -45), 90));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -24, -46), 180));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -47), 270));
+});
+
+// ---- territorio: amostragem da cobertura por proximidade
+const quadrado = { type: 'Polygon', coordinates: [[[-50, -27], [-49, -27], [-49, -26], [-50, -26], [-50, -27]]] };
+const comFuro = { type: 'Polygon', coordinates: [quadrado.coordinates[0],
+  [[-49.6, -26.6], [-49.4, -26.6], [-49.4, -26.4], [-49.6, -26.4], [-49.6, -26.6]]] };
+const doisPedacos = { type: 'MultiPolygon', coordinates: [quadrado.coordinates,
+  [[[-47, -27], [-46, -27], [-46, -26], [-47, -26], [-47, -27]]]] };
+
+caso('territorio: ponto dentro/fora, furo e MultiPolygon', () => {
+  assert.ok(Territorio.pontoNaGeometria(-26.5, -49.5, quadrado));
+  assert.ok(!Territorio.pontoNaGeometria(-25.5, -49.5, quadrado));
+  assert.ok(!Territorio.pontoNaGeometria(-26.5, -49.5, comFuro));
+  assert.ok(Territorio.pontoNaGeometria(-26.9, -49.9, comFuro));
+  assert.ok(Territorio.pontoNaGeometria(-26.5, -46.5, doisPedacos));
+  assert.ok(!Territorio.pontoNaGeometria(-26.5, -48, doisPedacos));
+});
+
+caso('territorio: area de 1 grau x 1 grau perto de -26,5 (~ 11.100 km2)', () => {
+  const a = Territorio.areaKm2(quadrado);
+  assert.ok(a > 10800 && a < 11300, String(a));
+  assert.ok(Territorio.areaKm2(comFuro) < a);
+});
+
+caso('territorio: tudo coberto, nada coberto e metade coberta', () => {
+  const todo = Territorio.amostrarCobertura(quadrado, () => true);
+  assert.strictEqual(todo.fracaoCoberta, 1);
+  assert.strictEqual(todo.semCobertura.length, 0);
+  const nada = Territorio.amostrarCobertura(quadrado, () => false, { maxSemCobertura: 50 });
+  assert.strictEqual(nada.fracaoCoberta, 0);
+  assert.strictEqual(nada.semCobertura.length, 50);
+  const metade = Territorio.amostrarCobertura(quadrado, (la, lo) => lo < -49.5);
+  assert.ok(Math.abs(metade.fracaoCoberta - 0.5) < 0.03, String(metade.fracaoCoberta));
+});
+
+caso('territorio: uma antena no centro, raio de 20 km cobre ~ pi*r2/area', () => {
+  const lat0 = -26.5, lon0 = -49.5;
+  const r = Territorio.amostrarCobertura(quadrado, (la, lo) => Geo.distanciaKm(lat0, lon0, la, lo) <= 20);
+  const esperado = Math.PI * 400 / Territorio.areaKm2(quadrado);
+  assert.ok(Math.abs(r.fracaoCoberta - esperado) < 0.02, r.fracaoCoberta + ' vs ' + esperado);
+});
+
+caso('territorio: municipio minusculo ganha grade fina e nao devolve zero amostras', () => {
+  const m = { type: 'Polygon', coordinates: [[[-49, -26], [-48.99, -26], [-48.99, -25.99], [-49, -25.99], [-49, -26]]] };
+  const r = Territorio.amostrarCobertura(m, () => true);
+  assert.ok(r.amostras > 10 && r.fracaoCoberta === 1);
+  assert.strictEqual(Territorio.amostrarCobertura({ type: 'Point', coordinates: [0, 0] }, () => true).fracaoCoberta, null);
 });
 
 filaAsync.then(() => {

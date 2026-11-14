@@ -1481,6 +1481,184 @@
     atualizarInfoFicha();
   }
 
+
+  // ------------------------------------------- COBERTURA DO MUNICIPIO (TERRITORIO)
+  // Quanto do municipio fica a mais de R km de qualquer antena. Os contornos vem
+  // do IBGE, baixados no build em /dados/malha/<UF>.json; sem eles (publicacao
+  // sem rede para o IBGE, arquivo aberto de file://) o painel nem aparece.
+  // Respeita operadoras e geracoes ligadas, mas NAO o filtro de UF: a antena do
+  // vizinho, do outro lado da divisa, cobre o municipio do mesmo jeito.
+  var terr = { malhas: {}, uf: null, muns: [], camada: null, cancelar: 0 };
+
+  function terrVisivel(i) {
+    if (!estado.operadoras[D.op[i]]) return false;
+    if (estado.geracoes !== 15 && !(D.ger[i] & estado.geracoes)) return false;
+    return true;
+  }
+
+  function terrTemAntena(raioKm) {
+    return function (lat, lon) {
+      var achou = false;
+      Geo.paraCadaCandidato(D.indice, lat, lon, raioKm, function (i) {
+        if (achou || !terrVisivel(i)) return;
+        if (Geo.distanciaKm(lat, lon, D.lat[i], D.lon[i]) <= raioKm) achou = true;
+      });
+      return achou;
+    };
+  }
+
+  function terrJson(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function terrMsg(t, tipo) {
+    var el = $('#terr-msg');
+    el.textContent = t || '';
+    el.className = 'msg' + (tipo ? ' ' + tipo : '');
+  }
+
+  function terrLimpar() {
+    if (terr.camada) { mapa.removeLayer(terr.camada); terr.camada = null; }
+    $('#terr-resultado').hidden = true;
+  }
+
+  function terrPct(f) { return (f * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }); }
+
+  function terrCarregarUF(uf) {
+    terr.cancelar++;
+    terrLimpar();
+    terrMsg('');
+    $('#terr-calcular').disabled = true;
+    $('#terr-ranking').disabled = true;
+    var sel = $('#terr-mun');
+    sel.disabled = true;
+    sel.innerHTML = '<option>Carregando...</option>';
+    var pronto = terr.malhas[uf] ? Promise.resolve(terr.malhas[uf])
+      : terrJson('dados/malha/' + uf + '.json').then(function (j) { terr.malhas[uf] = j; return j; });
+    pronto.then(function (j) {
+      terr.uf = uf; terr.muns = j.municipios;
+      sel.innerHTML = j.municipios.map(function (m, k) {
+        return '<option value="' + k + '">' + esc(m.n) + '</option>';
+      }).join('');
+      sel.disabled = false;
+      $('#terr-calcular').disabled = false;
+      $('#terr-ranking').disabled = false;
+    }).catch(function () {
+      sel.innerHTML = '<option>indisponível</option>';
+      terrMsg('Não consegui carregar o contorno de ' + uf + '.', 'erro');
+    });
+  }
+
+  function terrRaio() { return +$('#terr-raio').value; }
+
+  function terrCartao(titulo, r, raio) {
+    var f = r.fracaoCoberta;
+    var cls = f < 0.5 ? 'baixo' : (f < 0.85 ? 'medio' : '');
+    return '<div class="terr-cartao"><strong>' + esc(titulo) + '</strong>' +
+      '<div class="terr-grande ' + cls + '">' + terrPct(1 - f) + '% fora</div>' +
+      '<div class="terr-rotulo">do território a mais de ' + raio + ' km de qualquer antena</div>' +
+      '<div class="terr-barra" role="img" aria-label="' + terrPct(f) + '% do território a até ' + raio +
+      ' km de uma antena"><i style="width:' + (f * 100).toFixed(1) + '%"></i></div>' +
+      '<div class="terr-detalhe">' + terrPct(f) + '% a até ' + raio + ' km de uma antena. ' +
+      fmt(Math.round(r.areaKm2)) + ' km². Amostra de ' + fmt(r.amostras) + ' pontos, um a cada ' +
+      r.passoKm.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km.</div></div>';
+  }
+
+  function terrCalcular() {
+    var m = terr.muns[+$('#terr-mun').value];
+    if (!m) return;
+    terr.cancelar++;
+    terrLimpar();
+    var raio = terrRaio();
+    var r = Territorio.amostrarCobertura(m.g, terrTemAntena(raio));
+    var caixa = $('#terr-resultado');
+    caixa.hidden = false;
+    if (r.fracaoCoberta == null) {
+      caixa.innerHTML = '<div class="terr-cartao">Município pequeno demais para a amostra.</div>';
+      return;
+    }
+    caixa.innerHTML = terrCartao(m.n + ' (' + terr.uf + ')', r, raio);
+    terr.camada = L.layerGroup().addTo(mapa);
+    var gj = L.geoJSON(m.g, { style: { color: '#26d7e8', weight: 2, fill: false, interactive: false } });
+    gj.addTo(terr.camada);
+    r.semCobertura.forEach(function (p) {
+      L.circleMarker(p, { radius: 3, stroke: false, fillColor: '#e05050', fillOpacity: .75, interactive: false })
+        .addTo(terr.camada);
+    });
+    voarParaArea(gj.getBounds().pad(0.05), { maxZoom: 12 });
+    terrMsg('Pontos vermelhos: lugares a mais de ' + raio + ' km de qualquer antena (amostra).', '');
+  }
+
+  function terrRanking() {
+    var muns = terr.muns, uf = terr.uf, raio = terrRaio(), tem = terrTemAntena(raio);
+    var token = ++terr.cancelar;
+    terrLimpar();
+    var linhas = [], k = 0, areaTotal = 0, areaCoberta = 0;
+    $('#terr-ranking').disabled = true;
+    function fatia() {
+      if (token !== terr.cancelar) return;
+      var fim = Date.now() + 14;
+      while (k < muns.length && Date.now() < fim) {
+        var r = Territorio.amostrarCobertura(muns[k].g, tem, { maxSemCobertura: 0 });
+        if (r.fracaoCoberta != null) {
+          linhas.push({ k: k, nome: muns[k].n, fora: 1 - r.fracaoCoberta, area: r.areaKm2 });
+          areaTotal += r.areaKm2; areaCoberta += r.areaKm2 * r.fracaoCoberta;
+        }
+        k++;
+      }
+      terrMsg('Calculando ' + k + ' de ' + muns.length + ' municípios...');
+      if (k < muns.length) { setTimeout(fatia, 0); return; }
+      $('#terr-ranking').disabled = false;
+      terrMsg('');
+      linhas.sort(function (a, b) { return b.fora - a.fora || b.area - a.area; });
+      var h = '<div class="terr-cartao"><strong>' + esc(uf) + '</strong>' +
+        '<div class="terr-grande ' + (areaCoberta / areaTotal < 0.5 ? 'baixo' : 'medio') + '">' +
+        terrPct(1 - areaCoberta / areaTotal) + '% fora</div>' +
+        '<div class="terr-rotulo">da área do estado a mais de ' + raio + ' km de qualquer antena (' +
+        fmt(muns.length) + ' municípios)</div>' +
+        '<table class="terr-rank"><thead><tr><th>Mais descobertos</th><th class="num">Fora</th>' +
+        '<th class="num">km²</th></tr></thead><tbody>';
+      linhas.slice(0, 15).forEach(function (l) {
+        h += '<tr data-k="' + l.k + '"><td>' + esc(l.nome) + '</td><td class="num">' + terrPct(l.fora) +
+          '%</td><td class="num">' + fmt(Math.round(l.area)) + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+      var caixa = $('#terr-resultado');
+      caixa.innerHTML = h;
+      caixa.hidden = false;
+      caixa.querySelectorAll('tbody tr').forEach(function (tr) {
+        tr.addEventListener('click', function () {
+          $('#terr-mun').value = tr.getAttribute('data-k');
+          terrCalcular();
+        });
+      });
+    }
+    fatia();
+  }
+
+  function ligarTerritorio() {
+    var sec = $('#secao-territorio');
+    if (!sec || !window.Territorio || !window.fetch) return;
+    terrJson('dados/malha/indice.json').then(function (ind) {
+      if (!ind.ufs || !ind.ufs.length) return;
+      var sel = $('#terr-uf');
+      sel.innerHTML = '<option value="">Escolha o estado</option>' + ind.ufs.map(function (u) {
+        return '<option value="' + esc(u) + '">' + esc(u) + '</option>';
+      }).join('');
+      sel.addEventListener('change', function () {
+        if (!sel.value) { terr.cancelar++; terrLimpar(); $('#terr-mun').disabled = true; return; }
+        terrCarregarUF(sel.value);
+      });
+      $('#terr-calcular').addEventListener('click', terrCalcular);
+      $('#terr-ranking').addEventListener('click', terrRanking);
+      $('#terr-raio').addEventListener('change', function () { terr.cancelar++; terrLimpar(); });
+      sec.hidden = false;
+    }).catch(function () { /* sem malhas nesta publicacao: o painel fica escondido */ });
+  }
+
   // ------------------------------------------------- 8b. LOTE DE PONTOS (M10)
   // Uma lista de coordenadas (enderecos de uma carteira, pontos de instalacao) vira
   // a mais proxima de cada operadora por ponto, com resumo e CSV.
@@ -1924,6 +2102,7 @@
     $('#copiar-link').addEventListener('click', copiarLink);
     $('#compartilhar').addEventListener('click', compartilhar);
     ligarLugares();
+    ligarTerritorio();
     window.addEventListener('offline', function () {
       aviso('Sem internet: as antenas continuam no mapa. Busca por CEP/endereço, mapa de fundo e cobertura precisam de conexão.', '');
     });

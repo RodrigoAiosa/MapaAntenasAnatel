@@ -80,3 +80,7 @@ Mapas © colaboradores do OpenStreetMap.
 ## Foto da rua no balão do ponto
 
 Ao marcar um ponto, o balão mostra coordenada, endereço, a antena mais próxima e a foto do Google Street View virada para essa antena. A foto só carrega depois de um clique (a coordenada vai ao Google). Para ativar, crie uma chave da Street View Static API, restrinja por referenciador ao seu domínio, defina um limite de cota e salve na Vercel como `STREETVIEW_KEY`. Sem a chave o balão mostra apenas o link "Abrir no Street View", que não precisa de chave.
+
+## Cobertura do município
+
+O painel "Cobertura do município" estima quanto do território fica a mais de 2, 3, 5 ou 7 km de qualquer antena licenciada, respeitando os filtros de operadora e geração, e monta o ranking dos municípios mais descobertos de cada estado. Os contornos vêm do IBGE e são baixados no build (`scripts/baixar_malhas.py`, tolerante a falha: sem eles o painel não aparece; `SEM_MALHAS=1` pula o download). A conta é por amostragem em grade (`app/js/territorio.js`, com testes em `tests/geo_test.cjs`). É distância até uma antena, não sinal, e considera só a área, não os moradores.
