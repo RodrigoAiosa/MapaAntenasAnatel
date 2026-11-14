@@ -12,9 +12,14 @@ URL = "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/infraestrutura/co
 LIMITE = 400 * 1024 * 1024
 
 
+PRAZO = 150.0  # segundos para baixar
+
+
 def main():
+    import time
+    t0 = time.monotonic()
     req = urllib.request.Request(URL, headers={"User-Agent": "mapa-antenas-anatel/1.0"})
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:
         tam = int(r.headers.get("Content-Length") or 0)
         print("SONDA cobertura_movel.zip: Content-Length=%d bytes, Last-Modified=%s" % (tam, r.headers.get("Last-Modified")))
         if tam > LIMITE:
@@ -25,6 +30,9 @@ def main():
                 bloco = r.read(1 << 20)
                 if not bloco:
                     break
+                if time.monotonic() - t0 > PRAZO:
+                    print("SONDA: download passou de %d s, abandonando" % PRAZO)
+                    return
                 tmp.write(bloco)
             tmp.seek(0)
             z = zipfile.ZipFile(tmp)

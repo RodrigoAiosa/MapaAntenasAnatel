@@ -21,12 +21,16 @@ URL_NOMES = BASE + "/v1/localidades/estados/{uf}/municipios"
 CASAS = 4  # ~11 m: sobra para uma grade de amostragem de centenas de metros
 
 
-def buscar_json(url, tentativas=3, espera=2.0):
+PRAZO_TOTAL = 240.0   # segundos para todas as UFs: o build nunca espera o IBGE alem disso
+FALHAS_SEGUIDAS = 2   # duas UFs seguidas sem resposta = IBGE inacessivel daqui, desiste
+
+
+def buscar_json(url, tentativas=2, espera=1.5):
     ultimo = None
     for t in range(tentativas):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "mapa-antenas-anatel/1.0"})
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=20) as r:
                 return json.load(r)
         except Exception as e:  # rede, JSON ruim, 5xx
             ultimo = e
@@ -61,14 +65,24 @@ def executar(pasta, ufs=UFS, buscar=buscar_json):
     pasta = Path(pasta)
     pasta.mkdir(parents=True, exist_ok=True)
     feitas = []
+    inicio = time.monotonic()
+    seguidas = 0
     for uf in ufs:
+        if time.monotonic() - inicio > PRAZO_TOTAL:
+            print("  aviso: prazo de %d s esgotado, parando nas malhas ja baixadas" % PRAZO_TOTAL)
+            break
+        if seguidas >= FALHAS_SEGUIDAS:
+            print("  aviso: IBGE sem resposta, desistindo das malhas")
+            break
         try:
             muns = compactar(buscar(URL_MALHA.format(uf=uf)), buscar(URL_NOMES.format(uf=uf)))
             if not muns:
                 raise RuntimeError("malha vazia")
         except Exception as e:
             print("  aviso: malha de %s indisponivel (%s)" % (uf, e))
+            seguidas += 1
             continue
+        seguidas = 0
         (pasta / (uf + ".json")).write_text(
             json.dumps({"uf": uf, "municipios": muns}, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8")
