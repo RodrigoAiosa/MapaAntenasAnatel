@@ -20,6 +20,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "ferramentas"))
+sys.path.insert(0, str(RAIZ / "scripts"))
 
 import consolidar as C  # noqa: E402
 import gerar  # noqa: E402
@@ -316,6 +317,78 @@ class TesteDownloadCortado(unittest.TestCase):
 
             self.assertEqual(sorted(p.name for p in pasta.iterdir()), ["estacoes_smp.zip"])
             self.assertEqual(destino.read_bytes(), b"BASE BOA")
+
+
+class TesteCoberturaAnatel(unittest.TestCase):
+    """O leitor do zip de cobertura: cabecalho como a Anatel publica, escolha do arquivo
+    mais recente e conversao de virgula decimal."""
+
+    CAB = ("\ufeffC\u00f3digo Munic\u00edpio;Munic\u00edpio;UF;Tecnologia;Operadora;Per\u00edodo;% \u00e1rea coberta;"
+           "% moradores cobertos;% domicilios cobertos;\u00c1rea (km2);Moradores;Domic\u00edlios\n")
+
+    def zip_com(self, pasta, nome, texto):
+        caminho = Path(pasta) / "c.zip"
+        with zipfile.ZipFile(caminho, "w") as z:
+            z.writestr("Cobertura_2026_06_Municipios.csv", "x;y\n")
+            z.writestr(nome, texto.encode("utf-8"))
+        return caminho
+
+    def test_le_o_arquivo_mais_recente_e_converte_decimais(self):
+        import baixar_cobertura_anatel as b
+        linhas = (self.CAB +
+                  "1100122;Ji-Paran\u00e1;RO;3G4G5G;Todas;09-2026;0,11394;0,95339;0,94792;6896,6;124333;56566\n"
+                  "1100122;Ji-Paran\u00e1;RO;3G4G5G;VIVO;09-2026;0,072;0,9324;0,92;6896,6;124333;56566\n")
+        with tempfile.TemporaryDirectory() as d:
+            z = self.zip_com(d, "Cobertura_2026_09_Municipios.csv", linhas)
+            ufs = b.executar(Path(d) / "out", z)
+            self.assertEqual(ufs, ["RO"])
+            dados = json.loads((Path(d) / "out" / "RO.json").read_text(encoding="utf-8"))
+            self.assertEqual(dados["periodo"], "09-2026")
+            reg = dados["m"]["1100122"]
+            self.assertEqual(reg["p"], 124333)
+            self.assertEqual(len(reg["d"]), 2)
+            i_op = dados["ops"].index("Todas")
+            i_tec = dados["tecs"].index("3G4G5G")
+            self.assertIn([i_op, i_tec, 0.1139, 0.9534], reg["d"])
+
+    def test_percentual_de_0_a_100_vira_fracao(self):
+        import baixar_cobertura_anatel as b
+        linhas = self.CAB + "1;A;SC;4G;Todas;09-2026;50,0;80,0;80,0;10,0;1000;300\n"
+        with tempfile.TemporaryDirectory() as d:
+            z = self.zip_com(d, "Cobertura_2026_09_Municipios.csv", linhas)
+            b.executar(Path(d) / "out", z)
+            dados = json.loads((Path(d) / "out" / "SC.json").read_text(encoding="utf-8"))
+            self.assertEqual(dados["m"]["1"]["d"][0][2:], [0.5, 0.8])
+
+    def test_zip_sem_arquivo_de_municipios_falha_com_mensagem(self):
+        import baixar_cobertura_anatel as b
+        with tempfile.TemporaryDirectory() as d:
+            caminho = Path(d) / "c.zip"
+            with zipfile.ZipFile(caminho, "w") as z:
+                z.writestr("outro.csv", "a")
+            with self.assertRaises(RuntimeError):
+                b.executar(Path(d) / "out", caminho)
+
+
+class TesteMalhasIbge(unittest.TestCase):
+    def test_compacta_nomes_e_arredonda(self):
+        import baixar_malhas as m
+        malha = {"features": [
+            {"properties": {"codarea": "4200051"}, "geometry": {"type": "Polygon",
+             "coordinates": [[[-49.123456, -26.1], [-49.0, -26.1], [-49.0, -26.0], [-49.123456, -26.1]]]}},
+            {"properties": {"codarea": "0"}, "geometry": None}]}
+        r = m.compactar(malha, [{"id": 4200051, "nome": "Abdon Batista"}])
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0]["n"], "Abdon Batista")
+        self.assertEqual(r[0]["g"]["coordinates"][0][0], [-49.1235, -26.1])
+
+    def test_desiste_depressa_quando_o_ibge_nao_responde(self):
+        import baixar_malhas as m
+        def sem_rede(_url):
+            raise RuntimeError("sem rede")
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(m.executar(d, ["AC", "AL", "AM", "AP"], buscar=sem_rede), [])
+            self.assertFalse((Path(d) / "indice.json").exists())
 
 
 if __name__ == "__main__":

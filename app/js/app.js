@@ -1488,7 +1488,7 @@
   // sem rede para o IBGE, arquivo aberto de file://) o painel nem aparece.
   // Respeita operadoras e geracoes ligadas, mas NAO o filtro de UF: a antena do
   // vizinho, do outro lado da divisa, cobre o municipio do mesmo jeito.
-  var terr = { malhas: {}, uf: null, muns: [], camada: null, cancelar: 0 };
+  var terr = { malhas: {}, anatel: {}, indiceAnatel: null, uf: null, muns: [], camada: null, cancelar: 0 };
 
   function terrVisivel(i) {
     if (!estado.operadoras[D.op[i]]) return false;
@@ -1538,6 +1538,9 @@
     sel.innerHTML = '<option>Carregando...</option>';
     var pronto = terr.malhas[uf] ? Promise.resolve(terr.malhas[uf])
       : terrJson('dados/malha/' + uf + '.json').then(function (j) { terr.malhas[uf] = j; return j; });
+    if (terr.indiceAnatel && terr.indiceAnatel.ufs.indexOf(uf) >= 0 && !terr.anatel[uf]) {
+      terrJson('dados/anatel/' + uf + '.json').then(function (d) { terr.anatel[uf] = d; }).catch(function () {});
+    }
     pronto.then(function (j) {
       terr.uf = uf; terr.muns = j.municipios;
       sel.innerHTML = j.municipios.map(function (m, k) {
@@ -1554,7 +1557,57 @@
 
   function terrRaio() { return +$('#terr-raio').value; }
 
-  function terrCartao(titulo, r, raio) {
+
+  // Percentuais publicados pela Anatel (estimativa por modelo de propagacao), por
+  // municipio, operadora e tecnologia. O rotulo de tecnologia da Anatel e a UNIAO
+  // das geracoes ('4G5G' = coberto por 4G ou 5G), o mesmo que o filtro de geracoes
+  // do mapa faz: antena visivel se tem QUALQUER das geracoes marcadas.
+  function terrRotulosAnatel() {
+    var presentes = 0, ativas = [];
+    for (var k = 0; k < ANT_OPERADORAS.length; k++) {
+      if (!opPresente[k]) continue;
+      presentes++;
+      if (estado.operadoras[k]) ativas.push(k);
+    }
+    var op = ativas.length === presentes ? 'Todas' : (ativas.length === 1 ? nomeOp(ativas[0]) : null);
+    var tec = '';
+    if (estado.geracoes === 15) tec = 'Todas';
+    else for (var g = 0; g < ANT_GERACOES.length; g++) if (estado.geracoes & (1 << g)) tec += ANT_GERACOES[g];
+    return { op: op, tec: tec };
+  }
+
+  function terrAnatel(codigo) {
+    var d = terr.anatel[terr.uf];
+    if (!d) return null;
+    var reg = d.m[codigo];
+    if (!reg) return null;
+    var rot = terrRotulosAnatel();
+    if (!rot.op) return { motivo: 'A Anatel publica por operadora (uma de cada vez) ou todas juntas. Deixe uma só ou todas marcadas para comparar.' };
+    var io = -1, it = d.tecs.indexOf(rot.tec);
+    for (var i = 0; i < d.ops.length; i++) if (d.ops[i].toLowerCase() === rot.op.toLowerCase()) io = i;
+    if (io < 0 || it < 0) return { motivo: 'A Anatel não publica a combinação ' + rot.op + ' + ' + rot.tec + '.' };
+    for (var j = 0; j < reg.d.length; j++) {
+      if (reg.d[j][0] === io && reg.d[j][1] === it) {
+        return { area: reg.d[j][2], mor: reg.d[j][3], km2: reg.a, pop: reg.p, op: rot.op, tec: rot.tec,
+          periodo: d.periodo };
+      }
+    }
+    return { motivo: 'Sem linha da Anatel para ' + rot.op + ' + ' + rot.tec + ' neste município.' };
+  }
+
+  function terrAnatelHtml(codigo) {
+    if (!terr.anatel[terr.uf]) return '';
+    var a = terrAnatel(codigo);
+    if (!a) return '';
+    if (a.motivo) return '<div class="terr-anatel">' + esc(a.motivo) + '</div>';
+    return '<div class="terr-anatel"><strong>Anatel</strong> (' + esc(a.op) + ', ' + esc(a.tec) + ', ' +
+      esc(a.periodo) + '): ' + terrPct(a.area) + '% da área e <strong>' + terrPct(a.mor) +
+      '% dos moradores</strong> cobertos' +
+      (a.pop != null ? '; ' + fmt(Math.round(a.pop * (1 - a.mor))) + ' de ' + fmt(a.pop) +
+        ' moradores ficam fora' : '') + '. Estimativa da Anatel por modelo de propagação.</div>';
+  }
+
+  function terrCartao(titulo, r, raio, codigo) {
     var f = r.fracaoCoberta;
     var cls = f < 0.5 ? 'baixo' : (f < 0.85 ? 'medio' : '');
     return '<div class="terr-cartao"><strong>' + esc(titulo) + '</strong>' +
@@ -1564,7 +1617,8 @@
       ' km de uma antena"><i style="width:' + (f * 100).toFixed(1) + '%"></i></div>' +
       '<div class="terr-detalhe">' + terrPct(f) + '% a até ' + raio + ' km de uma antena. ' +
       fmt(Math.round(r.areaKm2)) + ' km². Amostra de ' + fmt(r.amostras) + ' pontos, um a cada ' +
-      r.passoKm.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km.</div></div>';
+      r.passoKm.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km.</div>' +
+      (codigo ? terrAnatelHtml(codigo) : '') + '</div>';
   }
 
   function terrCalcular() {
@@ -1580,7 +1634,7 @@
       caixa.innerHTML = '<div class="terr-cartao">Município pequeno demais para a amostra.</div>';
       return;
     }
-    caixa.innerHTML = terrCartao(m.n + ' (' + terr.uf + ')', r, raio);
+    caixa.innerHTML = terrCartao(m.n + ' (' + terr.uf + ')', r, raio, m.c);
     terr.camada = L.layerGroup().addTo(mapa);
     var gj = L.geoJSON(m.g, { style: { color: '#26d7e8', weight: 2, fill: false, interactive: false } });
     gj.addTo(terr.camada);
@@ -1604,7 +1658,9 @@
       while (k < muns.length && Date.now() < fim) {
         var r = Territorio.amostrarCobertura(muns[k].g, tem, { maxSemCobertura: 0 });
         if (r.fracaoCoberta != null) {
-          linhas.push({ k: k, nome: muns[k].n, fora: 1 - r.fracaoCoberta, area: r.areaKm2 });
+          var an = terr.anatel[uf] ? terrAnatel(muns[k].c) : null;
+          linhas.push({ k: k, nome: muns[k].n, fora: 1 - r.fracaoCoberta, area: r.areaKm2,
+            anatel: an && !an.motivo ? 1 - an.area : null });
           areaTotal += r.areaKm2; areaCoberta += r.areaKm2 * r.fracaoCoberta;
         }
         k++;
@@ -1613,6 +1669,7 @@
       if (k < muns.length) { setTimeout(fatia, 0); return; }
       $('#terr-ranking').disabled = false;
       terrMsg('');
+      var temAnatel = linhas.some(function (l) { return l.anatel != null; });
       linhas.sort(function (a, b) { return b.fora - a.fora || b.area - a.area; });
       var h = '<div class="terr-cartao"><strong>' + esc(uf) + '</strong>' +
         '<div class="terr-grande ' + (areaCoberta / areaTotal < 0.5 ? 'baixo' : 'medio') + '">' +
@@ -1620,10 +1677,12 @@
         '<div class="terr-rotulo">da área do estado a mais de ' + raio + ' km de qualquer antena (' +
         fmt(muns.length) + ' municípios)</div>' +
         '<table class="terr-rank"><thead><tr><th>Mais descobertos</th><th class="num">Fora</th>' +
+        (temAnatel ? '<th class="num" title="Área fora, segundo a estimativa da Anatel">Anatel</th>' : '') +
         '<th class="num">km²</th></tr></thead><tbody>';
       linhas.slice(0, 15).forEach(function (l) {
         h += '<tr data-k="' + l.k + '"><td>' + esc(l.nome) + '</td><td class="num">' + terrPct(l.fora) +
-          '%</td><td class="num">' + fmt(Math.round(l.area)) + '</td></tr>';
+          '%</td>' + (temAnatel ? '<td class="num">' + (l.anatel == null ? '-' : terrPct(l.anatel) + '%') + '</td>' : '') +
+          '<td class="num">' + fmt(Math.round(l.area)) + '</td></tr>';
       });
       h += '</tbody></table></div>';
       var caixa = $('#terr-resultado');
@@ -1642,6 +1701,7 @@
   function ligarTerritorio() {
     var sec = $('#secao-territorio');
     if (!sec || !window.Territorio || !window.fetch) return;
+    terrJson('dados/anatel/indice.json').then(function (i) { terr.indiceAnatel = i; }).catch(function () {});
     terrJson('dados/malha/indice.json').then(function (ind) {
       if (!ind.ufs || !ind.ufs.length) return;
       var sel = $('#terr-uf');

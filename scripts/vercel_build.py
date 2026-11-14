@@ -206,12 +206,16 @@ def main(argv=None):
         except Exception as e:
             print("aviso: malhas do IBGE nao baixadas (%s)" % e)
 
-    # TEMPORARIO: mostra no log o formato do zip de cobertura da Anatel.
-    try:
-        import sondar_cobertura_anatel
-        sondar_cobertura_anatel.main()
-    except Exception as e:
-        print("SONDA indisponivel: %s" % e)
+    # Percentuais de cobertura por municipio publicados pela Anatel (estimativa), para
+    # comparar com a conta do painel. Nao e fatal.
+    n_cobertura = 0
+    if os.environ.get("SEM_COBERTURA_ANATEL") != "1":
+        try:
+            sys.path.insert(0, str(RAIZ / "scripts"))
+            import baixar_cobertura_anatel
+            n_cobertura = len(baixar_cobertura_anatel.executar(PUBLIC / "dados" / "anatel"))
+        except Exception as e:
+            print("aviso: cobertura da Anatel nao baixada (%s)" % e)
 
     escrever(PUBLIC / "status.json", json.dumps({
         "projeto": TITULO,
@@ -221,6 +225,7 @@ def main(argv=None):
         "recorte_uf": args.uf or None,
         "estacoes": conferencia,
         "malhas_ibge_ufs": n_malhas,
+        "cobertura_anatel_ufs": n_cobertura,
         "commit": os.environ.get("VERCEL_GIT_COMMIT_SHA"),
     }, ensure_ascii=False, indent=2) + "\n")
 
