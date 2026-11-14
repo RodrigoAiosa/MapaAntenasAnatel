@@ -835,10 +835,10 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .secao.recolhivel > h2:focus-visible { outline: 2px solid var(--cor-ciano); outline-offset: 3px; border-radius: 6px; }
 .secao.recolhivel > h2 .caret { font-size: 12px; color: var(--muted); margin-left: 6px; }
 .secao.recolhida > :not(h2) { display: none !important; }
-.lugares { display: grid; gap: 4px; margin-top: 6px; }
+.lugares { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin-top: 6px; }
 .lugares:empty { display: none; }
 .lugar { display: flex; align-items: stretch; gap: 4px; }
-.lugar-ir { flex: 1; min-width: 0; text-align: left; font: 600 13px/1.3 'Inter', sans-serif; color: var(--text); background: var(--card2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 8px 10px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lugar-ir { flex: 1; min-width: 0; text-align: left; font: 600 13px/1.3 'Inter', sans-serif; color: var(--text); background: var(--card2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 8px 10px; cursor: pointer; overflow: hidden; overflow-wrap: anywhere; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .lugar-ir:hover { border-color: var(--cor-ciano); }
 .lugar-ir .estrela { color: var(--yellow); margin-right: 6px; }
 .lugar-ir .relogio { color: var(--muted); margin-right: 6px; }
