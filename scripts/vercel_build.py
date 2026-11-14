@@ -206,6 +206,13 @@ def main(argv=None):
         except Exception as e:
             print("aviso: malhas do IBGE nao baixadas (%s)" % e)
 
+    # TEMPORARIO: mostra no log o formato do zip de cobertura da Anatel.
+    try:
+        import sondar_cobertura_anatel
+        sondar_cobertura_anatel.main()
+    except Exception as e:
+        print("SONDA indisponivel: %s" % e)
+
     escrever(PUBLIC / "status.json", json.dumps({
         "projeto": TITULO,
         "base_anatel": origem.get("data_anatel"),
