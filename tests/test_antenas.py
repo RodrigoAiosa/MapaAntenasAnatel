@@ -371,24 +371,50 @@ class TesteCoberturaAnatel(unittest.TestCase):
 
 
 class TesteMalhasIbge(unittest.TestCase):
+    MALHA = {"features": [
+        {"properties": {"codarea": "4200051"}, "geometry": {"type": "Polygon",
+         "coordinates": [[[-49.123456, -26.1], [-49.0, -26.1], [-49.0, -26.0], [-49.123456, -26.1]]]}},
+        {"properties": {"codarea": "0"}, "geometry": None}]}
+
     def test_compacta_nomes_e_arredonda(self):
         import baixar_malhas as m
-        malha = {"features": [
-            {"properties": {"codarea": "4200051"}, "geometry": {"type": "Polygon",
-             "coordinates": [[[-49.123456, -26.1], [-49.0, -26.1], [-49.0, -26.0], [-49.123456, -26.1]]]}},
-            {"properties": {"codarea": "0"}, "geometry": None}]}
-        r = m.compactar(malha, [{"id": 4200051, "nome": "Abdon Batista"}])
+        r = m.compactar(self.MALHA, {"4200051": "Abdon Batista"})
         self.assertEqual(len(r), 1)
         self.assertEqual(r[0]["n"], "Abdon Batista")
         self.assertEqual(r[0]["g"]["coordinates"][0][0], [-49.1235, -26.1])
 
-    def test_desiste_depressa_quando_o_ibge_nao_responde(self):
+    def test_espelho_com_id_de_6_digitos_e_nome_na_propriedade(self):
         import baixar_malhas as m
-        def sem_rede(_url):
+        malha = {"features": [{"properties": {"id": "420005", "name": "X"}, "geometry": {
+            "type": "Polygon", "coordinates": [[[-49, -26], [-48, -26], [-48, -25], [-49, -26]]]}}]}
+        r = m.compactar(malha, {"4200051": "Abdon Batista"})
+        self.assertEqual((r[0]["c"], r[0]["n"]), ("4200051", "Abdon Batista"))
+
+    def test_desiste_depressa_quando_ninguem_responde(self):
+        import baixar_malhas as m
+        chamadas = []
+        def sem_rede(url):
+            chamadas.append(url)
             raise RuntimeError("sem rede")
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(m.executar(d, ["AC", "AL", "AM", "AP"], buscar=sem_rede), [])
             self.assertFalse((Path(d) / "indice.json").exists())
+        self.assertEqual(len(chamadas), len(m.FONTES))  # cada fonte e tentada uma vez so
+
+    def test_cai_para_a_proxima_fonte_e_a_descartada_nao_volta(self):
+        import baixar_malhas as m
+        chamadas = []
+        def so_o_espelho(url):
+            chamadas.append(url)
+            if "raw.githubusercontent.com" in url:
+                return self.MALHA
+            raise RuntimeError("fora do ar")
+        with tempfile.TemporaryDirectory() as d:
+            feitas = m.executar(d, ["SC", "SP"], buscar=so_o_espelho, nomes={"4200051": "Abdon Batista"})
+            self.assertEqual(feitas, ["SC", "SP"])
+            self.assertTrue((Path(d) / "indice.json").exists())
+        # IBGE v3 e v4 so foram tentados na primeira UF
+        self.assertEqual(sum("servicodados" in u for u in chamadas), 2)
 
 
 if __name__ == "__main__":

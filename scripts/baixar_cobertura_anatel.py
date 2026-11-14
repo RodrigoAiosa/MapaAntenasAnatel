@@ -30,6 +30,7 @@ from pathlib import Path
 
 URL = "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/infraestrutura/cobertura_movel.zip"
 PRAZO_DOWNLOAD = 240.0
+ULTIMOS_NOMES = {}  # codigo IBGE -> nome, da ultima leitura (para as malhas)
 RE_ARQUIVO = re.compile(r"Cobertura_(\d{4})_(\d{2})_Municipios\.csv$", re.I)
 
 
@@ -72,7 +73,7 @@ def escolher_arquivo(z):
 
 
 def ler_municipios(fluxo):
-    """fluxo: arquivo binario do CSV. Devolve (por_uf, periodo, ops, tecs)."""
+    """fluxo: arquivo binario do CSV. Devolve (por_uf, ops, tecs, periodos, nomes)."""
     texto = io.TextIOWrapper(fluxo, encoding="utf-8-sig", newline="")
     leitor = csv.reader(texto, delimiter=";")
     cab = [norm(c) for c in next(leitor)]
@@ -84,6 +85,7 @@ def ler_municipios(fluxo):
         raise RuntimeError("coluna ausente %s; cabecalho: %s" % (nomes, cab))
 
     i_cod = col("codigo municipio")
+    i_nome = col("municipio")
     i_uf = col("uf")
     i_tec = col("tecnologia")
     i_op = col("operadora")
@@ -95,13 +97,15 @@ def ler_municipios(fluxo):
 
     ops, tecs = [], []
     por_uf = {}
+    nomes = {}
     linhas = []
     for row in leitor:
-        if len(row) <= max(i_cod, i_uf, i_tec, i_op, i_per, i_area, i_mor, i_km2, i_pop):
+        if len(row) <= max(i_nome, i_cod, i_uf, i_tec, i_op, i_per, i_area, i_mor, i_km2, i_pop):
             continue
         a, m = numero(row[i_area]), numero(row[i_mor])
         if a is None or m is None:
             continue
+        nomes[row[i_cod].strip()] = row[i_nome].strip()
         linhas.append((row[i_cod].strip(), row[i_uf].strip().upper(), row[i_tec].strip(),
                        row[i_op].strip(), row[i_per].strip(), a, m,
                        numero(row[i_km2]), numero(row[i_pop])))
@@ -120,7 +124,7 @@ def ler_municipios(fluxo):
         if pop is not None:
             reg["p"] = int(round(pop))
         reg["d"].append([ops.index(op), tecs.index(tec), round(a / escala, 4), round(m / escala, 4)])
-    return por_uf, ops, tecs, sorted({l[4] for l in linhas if l[4]})
+    return por_uf, ops, tecs, sorted({l[4] for l in linhas if l[4]}), nomes
 
 
 def executar(pasta, zip_local=None):
@@ -134,7 +138,7 @@ def executar(pasta, zip_local=None):
         z = zipfile.ZipFile(tmp)
         info = escolher_arquivo(z)
         with z.open(info) as f:
-            por_uf, ops, tecs, periodos = ler_municipios(f)
+            por_uf, ops, tecs, periodos, nomes = ler_municipios(f)
     pasta.mkdir(parents=True, exist_ok=True)
     m = RE_ARQUIVO.search(info.filename)
     periodo = "%s-%s" % (m.group(2), m.group(1))  # MM-AAAA, como a Anatel escreve
@@ -147,6 +151,8 @@ def executar(pasta, zip_local=None):
          "fonte": "Anatel, Painel Cobertura Movel (estimativa)"}, ensure_ascii=False), encoding="utf-8")
     print("cobertura Anatel: %s, %d UFs, operadoras=%s, tecnologias=%s, periodos no arquivo=%s" % (
         info.filename, len(por_uf), ops, tecs, periodos))
+    ULTIMOS_NOMES.clear()
+    ULTIMOS_NOMES.update(nomes)
     return sorted(por_uf)
 
 

@@ -196,26 +196,28 @@ def main(argv=None):
         with open(PUBLIC / "robots.txt", "a", encoding="utf-8") as f:
             f.write("Sitemap: %s/sitemap.xml\n" % base)
 
-    # Contornos municipais do IBGE, para o painel "Cobertura do municipio". Nao e fatal.
-    n_malhas = 0
-    if os.environ.get("SEM_MALHAS") != "1":
-        try:
-            sys.path.insert(0, str(RAIZ / "scripts"))
-            import baixar_malhas
-            n_malhas = len(baixar_malhas.executar(PUBLIC / "dados" / "malha"))
-        except Exception as e:
-            print("aviso: malhas do IBGE nao baixadas (%s)" % e)
-
     # Percentuais de cobertura por municipio publicados pela Anatel (estimativa), para
     # comparar com a conta do painel. Nao e fatal.
     n_cobertura = 0
+    nomes_municipios = {}
     if os.environ.get("SEM_COBERTURA_ANATEL") != "1":
         try:
             sys.path.insert(0, str(RAIZ / "scripts"))
             import baixar_cobertura_anatel
             n_cobertura = len(baixar_cobertura_anatel.executar(PUBLIC / "dados" / "anatel"))
+            nomes_municipios = dict(baixar_cobertura_anatel.ULTIMOS_NOMES)
         except Exception as e:
             print("aviso: cobertura da Anatel nao baixada (%s)" % e)
+
+    # Contornos municipais (IBGE ou espelho), para o painel "Cobertura do municipio". Nao e fatal.
+    n_malhas = 0
+    if os.environ.get("SEM_MALHAS") != "1":
+        try:
+            sys.path.insert(0, str(RAIZ / "scripts"))
+            import baixar_malhas
+            n_malhas = len(baixar_malhas.executar(PUBLIC / "dados" / "malha", nomes=nomes_municipios))
+        except Exception as e:
+            print("aviso: malhas do IBGE nao baixadas (%s)" % e)
 
     escrever(PUBLIC / "status.json", json.dumps({
         "projeto": TITULO,
