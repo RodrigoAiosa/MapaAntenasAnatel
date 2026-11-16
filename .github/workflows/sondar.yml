@@ -1,4 +1,4 @@
-# TEMPORARIO: descobre colunas dos arquivos de setores e de escolas.
+# TEMPORARIO
 name: Sondar fontes
 on: workflow_dispatch
 permissions: {}
@@ -7,23 +7,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: IBGE nomes
+      - name: setores
         run: |
-          A=https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/
-          echo "== csv"; curl -s -m 60 ${A}Agregados_por_Setor_csv/ | grep -o 'href="[^"?/][^"]*"' | grep -v http
-          M=${A}malha_com_atributos/setores/
-          echo "== malha_com_atributos/setores"; curl -s -m 60 $M | grep -o 'href="[^"?/][^"]*"' | grep -v http
-          for d in gpkg csv shp; do echo "== $d"; curl -s -m 60 $M$d/ | grep -o 'href="[^"?][^"]*"' | grep -v http | head -8; done
-      - name: escolas gpkg
-        run: |
-          curl -sL -m 300 -o /tmp/e.gpkg https://github.com/ipea/geobr/releases/download/v1.7.0/schools_2023.gpkg
-          ls -la /tmp/e.gpkg
+          M=https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/malha_com_atributos/setores/
+          echo "== gpkg/UF"; curl -s -m 60 $M/gpkg/UF/ | grep -E 'href="[A-Z]{2}_' | sed 's/<[^>]*>/ /g' | head -5
+          F=$(curl -s -m 60 $M/gpkg/UF/ | grep -o 'href="AP[^"]*"' | head -1 | sed 's/href="//;s/"//'); echo "arquivo: $F"
+          curl -sL -m 120 -o /tmp/ap.zip $M/gpkg/UF/$F; ls -la /tmp/ap.zip; cd /tmp && (unzip -o -q ap.zip || true); ls -la /tmp | head -20
           python3 - <<'PY'
-          import sqlite3
-          c=sqlite3.connect('/tmp/e.gpkg')
-          for (n,) in c.execute("select table_name from gpkg_contents"):
-              print("tabela",n, c.execute("select count(*) from %s"%n).fetchone())
-              cols=[r[1] for r in c.execute("pragma table_info(%s)"%n)]; print(cols)
-              for r in c.execute("select * from %s limit 3"%n): print([ (x if not isinstance(x,bytes) else x[:30].hex()) for x in r])
-          print(c.execute("select column_name,geometry_type_name,srs_id from gpkg_geometry_columns").fetchall())
+          import sqlite3,glob
+          for f in glob.glob('/tmp/**/*.gpkg',recursive=True):
+              c=sqlite3.connect(f); print(f)
+              for (n,) in c.execute("select table_name from gpkg_contents"):
+                  print("tabela",n,c.execute("select count(*) from \"%s\""%n).fetchone())
+                  print([r[1] for r in c.execute("pragma table_info(\"%s\")"%n)])
+                  for r in c.execute("select * from \"%s\" limit 2"%n): print([(x if not isinstance(x,bytes) else x[:12].hex()) for x in r])
+              print(c.execute("select column_name,geometry_type_name,srs_id from gpkg_geometry_columns").fetchall())
           PY
+      - name: basico
+        run: |
+          A=https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/Agregados_por_Setor_csv/
+          curl -sL -m 120 -o /tmp/b.zip ${A}Agregados_por_setores_basico_BR_20260520.zip; cd /tmp && unzip -o -q b.zip; ls -la /tmp/*.csv; head -c 700 /tmp/Agregados_por_setores_basico_BR*.csv | cat -v | head -5
