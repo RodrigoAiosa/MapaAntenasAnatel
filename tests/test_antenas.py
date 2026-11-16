@@ -417,6 +417,105 @@ class TesteMalhasIbge(unittest.TestCase):
         self.assertEqual(sum("servicodados" in u for u in chamadas), 2)
 
 
+class TestePessoasEscolas(unittest.TestCase):
+    def setUp(self):
+        import preparar_pessoas_escolas as P
+        self.P = P
+
+    @staticmethod
+    def blob(lon, lat, flags=1):
+        import struct
+        return b"GP\x00" + bytes([flags]) + struct.pack("<i", 4674) + b"\x01" + struct.pack("<I", 1) + struct.pack("<dd", lon, lat)
+
+    def test_ponto_do_gpkg(self):
+        self.assertEqual(self.P.ponto_do_gpkg(self.blob(-48.5, -27.5)), (-48.5, -27.5))
+        self.assertIsNone(self.P.ponto_do_gpkg(self.blob(-48.5, -27.5, flags=0b00010001)))   # vazio
+        self.assertIsNone(self.P.ponto_do_gpkg(b""))
+        self.assertIsNone(self.P.ponto_do_gpkg(b"XX" + b"\x00" * 30))
+
+    def test_numero_do_ibge(self):
+        self.assertEqual([self.P.numero_br(x) for x in ('"928"', ".", "", "12,0", "abc")], [928, 0, 0, 12, 0])
+
+    def test_centroide_pega_o_maior_anel_e_ignora_o_furo(self):
+        quad = [(0, 0), (4, 0), (4, 4), (0, 4), (0, 0)]
+        furo = [(1, 1), (1, 2), (2, 2), (2, 1), (1, 1)]
+        pts = quad + furo
+        x, y = self.P.centroide_do_poligono(pts, [0, 5])
+        self.assertAlmostEqual(x, 2.0)
+        self.assertAlmostEqual(y, 2.0)
+        self.assertIsNone(self.P.centroide_do_poligono([], []))
+        self.assertEqual(self.P.centroide_do_poligono([(1, 1), (1, 1)], [0]), (1.0, 1.0))   # degenerado
+
+    def test_escolas_do_gpkg(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "e.gpkg"
+            con = sqlite3.connect(str(f))
+            con.execute("create table gpkg_contents (table_name text)")
+            con.execute("insert into gpkg_contents values ('schools_2023')")
+            con.execute("create table schools_2023 (fid integer, geom blob, abbrev_state text, name_muni text, "
+                        "code_school integer, name_school text, admin_category text, urban text)")
+            linhas = [
+                (1, self.blob(-48.5, -27.5), "SC", "Florianópolis", 42000001, "EEB UM", "Pública", "Sim"),
+                (2, self.blob(-48.6, -27.6), "SC", "Florianópolis", 42000002, "COLEGIO DOIS", "Privada", "Não"),
+                (3, self.blob(0.0, 0.0), "SC", "Palhoça", 42000003, "FORA DO BRASIL", "Pública", "Sim"),
+                (4, None, "SC", "Palhoça", 42000004, "SEM PONTO", "Pública", "Sim"),
+                (5, self.blob(-47.9, -15.8), "DF", "Brasília", 53000001, "CEF TRES", "Pública", "Sim"),
+            ]
+            con.executemany("insert into schools_2023 values (?,?,?,?,?,?,?,?)", linhas)
+            con.commit()
+            con.close()
+            por_uf, est = self.P.escolas_do_gpkg(f)
+        self.assertEqual((est["lidas"], est["sem_ponto"], est["fora_do_brasil"], est["publicadas"]), (5, 1, 1, 3))
+        sc = por_uf["SC"]
+        self.assertEqual(sc["mun"], ["Florianópolis"])
+        self.assertEqual(sc["e"][0], [42000001, -27.5, -48.5, "EEB UM", 0, 2])      # publica, urbana
+        self.assertEqual(sc["e"][1][5], 1)                                          # privada, rural
+
+    def test_basico_e_pessoas_da_uf(self):
+        try:
+            import shapefile
+        except ImportError:
+            self.skipTest("pyshp nao instalado")
+        P = self.P
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            cab = '"CD_SETOR";"CD_MUN";"NM_MUN";"v0001"\n'
+            corpo = ('"420540705000001";"4205407";"Florianópolis";"928"\n'
+                     '"420540705000002";"4205407";"Florianópolis";"."\n'
+                     '"420540705000003";"4205407";"Florianópolis";"100"\n')
+            with zipfile.ZipFile(d / "b.zip", "w") as z:
+                z.writestr("basico.csv", (cab + corpo).encode("latin-1"))
+            basico = P.ler_basico(d / "b.zip")
+            self.assertEqual(basico["420540705000001"], (928, "4205407", "Florianópolis"))
+            self.assertEqual(basico["420540705000002"][0], 0)
+
+            base = d / "SC_setores_CD2022"
+            w = shapefile.Writer(str(base), shapeType=shapefile.POLYGON)
+            w.field("CD_SETOR", "C", 15)
+            w.poly([[(-48.6, -27.6), (-48.6, -27.4), (-48.4, -27.4), (-48.4, -27.6), (-48.6, -27.6)]])
+            w.record("420540705000001")
+            w.poly([[(-48.3, -27.6), (-48.3, -27.5), (-48.2, -27.5), (-48.2, -27.6), (-48.3, -27.6)]])
+            w.record("420540705000002")          # 0 pessoas: fica de fora
+            w.poly([[(0, 0), (0, 1), (1, 1), (1, 0), (0, 0)]])
+            w.record("420540705000003")          # fora do Brasil: descartado
+            w.close()
+            with zipfile.ZipFile(d / "orig.zip", "w") as z:
+                for ext in (".shp", ".shx", ".dbf"):
+                    z.write(str(base) + ext, "SC_setores_CD2022" + ext)
+
+            def falso(url, destino, tentativas=3):
+                Path(destino).write_bytes((d / "orig.zip").read_bytes())
+            original, P.baixar = P.baixar, falso
+            try:
+                dados, est = P.pessoas_da_uf("SC", basico, d)
+            finally:
+                P.baixar = original
+        self.assertEqual(dados["mun"], [["4205407", "Florianópolis"]])
+        self.assertEqual(dados["p"], [-485000, -275000, 928, 0])
+        self.assertEqual((est["setores"], est["sem_geometria"], est["pessoas"]), (3, 1, 928))
+
+
 class TesteHistorico(unittest.TestCase):
     def test_data_do_5g_nao_e_a_da_antena(self):
         """Uma ERB de 2003 que ganhou 5G em 2022 conta 4G em 2003 e 5G em 2022."""
