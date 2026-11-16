@@ -5,27 +5,18 @@ permissions: {}
 jobs:
   sondar:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: IBGE agregados
+      - name: IBGE listas
         run: |
-          curl -s -m 60 https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/ | grep -o 'href="[^"]*"' | head -40 || true
-      - name: IBGE malha de setores
-        run: |
-          B=https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/
-          curl -s -m 60 $B | grep -o 'href="[^"]*"' | head -20 || true
-          echo ---2022; curl -s -m 60 ${B}censo_2022/ | grep -o 'href="[^"]*"' | head -20 || true
-          echo ---setores; curl -s -m 60 ${B}censo_2022/setores/ | grep -o 'href="[^"]*"' | head -20 || true
-      - name: IBGE grade estatistica
-        run: |
-          curl -s -m 60 https://geoftp.ibge.gov.br/recortes_para_fins_estatisticos/grade_estatistica/censo_2022/ | grep -o 'href="[^"]*"' | head -30 || true
-      - name: geobr releases
+          A=https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/
+          for d in Agregados_por_Setor_csv malha_com_atributos; do echo "=== $d"; curl -s -m 60 $A$d/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; done
+          B=https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/setores/
+          for d in gpkg shp; do echo "=== $d"; curl -s -m 60 $B$d/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; curl -s -m 60 $B$d/UF/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; done
+      - name: geobr escolas
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/ipeaGIT/geobr/releases --jq '.[] | .tag_name + " " + (.assets|length|tostring)' | head
-          gh api repos/ipeaGIT/geobr/releases --jq '.[].assets[].name' | grep -i -E 'school|escola' | head -20 || true
-      - name: INEP
-        run: |
-          curl -sI -m 30 https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2025.zip | head -5 || true
-          curl -sI -m 30 https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip | head -5 || true
+          for t in $(gh api repos/ipeaGIT/geobr/releases --jq '.[].tag_name'); do
+            gh api "repos/ipeaGIT/geobr/releases/tags/$t" --jq '.assets[] | select(.name|test("school")) | [.name,.size,.browser_download_url] | @tsv' 2>/dev/null
+          done | head -20
