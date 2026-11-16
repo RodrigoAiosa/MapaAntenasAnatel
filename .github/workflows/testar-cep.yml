@@ -9,10 +9,10 @@ permissions: {}
 jobs:
   testar:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: python scripts/testar_cep_escolas.py ${{ inputs.uf }} --amostra 200 --faltantes 300
+      - run: python scripts/testar_cep_escolas.py ${{ inputs.uf }} --amostra 150 --faltantes 200

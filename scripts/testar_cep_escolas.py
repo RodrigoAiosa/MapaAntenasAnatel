@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -38,13 +39,13 @@ def km(lat1, lon1, lat2, lon2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def geocodificar(cep, espera=0.25):
+def geocodificar(cep, espera=0.05):
     """BrasilAPI v2 -> (lat, lon, servico) ou None. Respeita 429 esperando."""
     url = "https://brasilapi.com.br/api/cep/v2/" + cep
-    for tentativa in range(4):
+    for tentativa in range(2):
         try:
             time.sleep(espera)
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mapa-antenas"}), timeout=20) as r:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mapa-antenas"}), timeout=8) as r:
                 d = json.load(r)
             c = (d.get("location") or {}).get("coordinates") or {}
             if c.get("latitude") and c.get("longitude"):
@@ -68,8 +69,8 @@ def pct(v, q):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("uf")
-    ap.add_argument("--amostra", type=int, default=200)
-    ap.add_argument("--faltantes", type=int, default=300)
+    ap.add_argument("--amostra", type=int, default=150)
+    ap.add_argument("--faltantes", type=int, default=200)
     a = ap.parse_args()
     gp = Path("/tmp/escolas.gpkg")
     if not gp.exists():
@@ -91,8 +92,10 @@ def main():
     # 1) precisao
     amostra = random.sample([x for x in com if x[1]], min(a.amostra, sum(1 for x in com if x[1])))
     erros, falhas, servicos = [], 0, {}
-    for pt, cep, mun, nome, end in amostra:
-        r = geocodificar(cep)
+    with ThreadPoolExecutor(8) as ex:
+        resp = list(ex.map(lambda x: geocodificar(x[1]), amostra))
+    print("  amostra geocodificada", flush=True)
+    for (pt, cep, mun, nome, end), r in zip(amostra, resp):
         if not r:
             falhas += 1
             continue
@@ -108,10 +111,8 @@ def main():
 
     # 2) cobertura nas que faltam
     falt = random.sample([x for x in sem if x[1]], min(a.faltantes, sum(1 for x in sem if x[1])))
-    ok = 0
-    for pt, cep, mun, nome, end in falt:
-        if geocodificar(cep):
-            ok += 1
+    with ThreadPoolExecutor(8) as ex:
+        ok = sum(1 for r in ex.map(lambda x: geocodificar(x[1]), falt) if r)
     print("COBERTURA (%d escolas sem coordenada, com CEP): resolvidas %d (%.0f%%)" % (len(falt), ok, 100.0 * ok / max(1, len(falt))))
     print("exemplos sem coordenada:")
     for x in sem[:3]:
