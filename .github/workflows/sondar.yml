@@ -1,4 +1,4 @@
-# TEMPORARIO: descobre onde estao os arquivos de setores censitarios e de escolas.
+# TEMPORARIO: descobre colunas dos arquivos de setores e de escolas.
 name: Sondar fontes
 on: workflow_dispatch
 permissions: {}
@@ -7,16 +7,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: IBGE listas
+      - name: IBGE nomes
         run: |
           A=https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/
-          for d in Agregados_por_Setor_csv malha_com_atributos; do echo "=== $d"; curl -s -m 60 $A$d/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; done
-          B=https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/censo_2022/setores/
-          for d in gpkg shp; do echo "=== $d"; curl -s -m 60 $B$d/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; curl -s -m 60 $B$d/UF/ | grep -E 'href="[^?/h][^"]*"' | sed 's/<[^>]*>/ /g' | head -40; done
-      - name: geobr escolas
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "== csv"; curl -s -m 60 ${A}Agregados_por_Setor_csv/ | grep -o 'href="[^"?/][^"]*"' | grep -v http
+          M=${A}malha_com_atributos/setores/
+          echo "== malha_com_atributos/setores"; curl -s -m 60 $M | grep -o 'href="[^"?/][^"]*"' | grep -v http
+          for d in gpkg csv shp; do echo "== $d"; curl -s -m 60 $M$d/ | grep -o 'href="[^"?][^"]*"' | grep -v http | head -8; done
+      - name: escolas gpkg
         run: |
-          for t in $(gh api repos/ipeaGIT/geobr/releases --jq '.[].tag_name'); do
-            gh api "repos/ipeaGIT/geobr/releases/tags/$t" --jq '.assets[] | select(.name|test("school")) | [.name,.size,.browser_download_url] | @tsv' 2>/dev/null
-          done | head -20
+          curl -sL -m 300 -o /tmp/e.gpkg https://github.com/ipea/geobr/releases/download/v1.7.0/schools_2023.gpkg
+          ls -la /tmp/e.gpkg
+          python3 - <<'PY'
+          import sqlite3
+          c=sqlite3.connect('/tmp/e.gpkg')
+          for (n,) in c.execute("select table_name from gpkg_contents"):
+              print("tabela",n, c.execute("select count(*) from %s"%n).fetchone())
+              cols=[r[1] for r in c.execute("pragma table_info(%s)"%n)]; print(cols)
+              for r in c.execute("select * from %s limit 3"%n): print([ (x if not isinstance(x,bytes) else x[:30].hex()) for x in r])
+          print(c.execute("select column_name,geometry_type_name,srs_id from gpkg_geometry_columns").fetchall())
+          PY
