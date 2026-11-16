@@ -201,6 +201,11 @@ def main(argv=None):
         with open(PUBLIC / "robots.txt", "a", encoding="utf-8") as f:
             f.write("Sitemap: %s/sitemap.xml\n" % base)
 
+    # Populacao por setor e escolas, prontas em dados_prontos/ (gerados no GitHub Actions).
+    prontos = RAIZ / "dados_prontos"
+    if prontos.is_dir():
+        shutil.copytree(prontos, PUBLIC / "dados", dirs_exist_ok=True)
+
     # Percentuais de cobertura por municipio publicados pela Anatel (estimativa), para
     # comparar com a conta do painel. Nao e fatal.
     n_cobertura = 0

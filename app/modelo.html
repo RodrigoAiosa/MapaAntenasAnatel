@@ -881,6 +881,10 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 
 /* Cobertura do municipio */
 #terr-resultado { margin-top: 10px; }
+#sc-resultado { margin-top: 10px; }
+.sc-linha { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sc-grande { font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--cor-vermelho); }
+.sc-sub { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
 #evo-grafico svg { width: 100%; height: auto; display: block; }
 #evo-grafico .eixo { stroke: var(--border2); stroke-width: 1; }
 #evo-grafico .rot { fill: var(--muted); font: 10px 'Inter', sans-serif; }
@@ -1036,6 +1040,26 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
         <strong>subestimados</strong>. Uma ERB conta em cada geração que tem.</div>
     </div>
 
+    <div class="secao" id="secao-semcob" hidden>
+      <h2>Sem cobertura: pessoas e escolas</h2>
+      <select id="sc-uf" class="campo" aria-label="Estado"></select>
+      <select id="sc-raio" class="campo" aria-label="Distância até a antena">
+        <option value="2">Antena a até 2 km</option>
+        <option value="3">Antena a até 3 km</option>
+        <option value="5" selected>Antena a até 5 km</option>
+        <option value="7">Antena a até 7 km</option>
+      </select>
+      <label class="chip" style="margin-top:6px"><input type="checkbox" id="sc-publicas" checked><span>Só escolas públicas</span></label>
+      <div class="botoes"><button id="sc-calcular" class="primario" type="button" disabled>Calcular</button></div>
+      <div id="sc-msg" class="msg" role="status" aria-live="polite"></div>
+      <div id="sc-resultado" hidden></div>
+      <div class="nota">Conta quem mora em <strong>setores censitários (Censo 2022, IBGE) cujo centro fica a mais
+        de R km de uma antena</strong> licenciada, respeitando os filtros de operadora e geração, e as escolas
+        (Catálogo do INEP 2023) nessa situação. Distância não é sinal. O setor é contado pelo centro, então em
+        área rural grande o número é aproximado. Cerca de 1 em cada 4 escolas do catálogo vem sem coordenada e
+        <strong>fica de fora</strong>; a tela mostra quantas.</div>
+    </div>
+
     <div class="secao" id="secao-territorio" hidden>
       <h2>Cobertura do município</h2>
       <select id="terr-uf" class="campo" aria-label="Estado"></select>
@@ -1147,6 +1171,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 <script>/*INSERIR:COBERTURA_JS*/</script>
 <script>/*INSERIR:TERRITORIO_JS*/</script>
 <script>/*INSERIR:EVOLUCAO_JS*/</script>
+<script>/*INSERIR:SEMCOBERTURA_JS*/</script>
 <script>/*INSERIR:APP_JS*/</script>
 <script>/*INSERIR:PAINEL_JS*/</script>
 <script>/*INSERIR:TOUR_JS*/</script>

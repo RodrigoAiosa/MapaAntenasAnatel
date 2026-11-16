@@ -1767,6 +1767,148 @@
     }).catch(function () { /* sem historico nesta publicacao: a secao fica escondida */ });
   }
 
+  // ------------------------------------------------- 8c. SEM COBERTURA (pessoas e escolas)
+  var sc = { pessoasUfs: [], escolasUfs: [], cache: {}, camada: null, estado: null, ticket: 0 };
+
+  function scMsg(t, tipo) {
+    var el = $('#sc-msg');
+    el.textContent = t || '';
+    el.className = 'msg' + (tipo ? ' ' + tipo : '');
+  }
+
+  function scLimpar() {
+    sc.ticket++;
+    sc.estado = null;
+    if (sc.camada) { mapa.removeLayer(sc.camada); sc.camada = null; }
+    $('#sc-resultado').hidden = true;
+  }
+
+  function scCarregar(uf) {
+    // Cada arquivo e opcional: sem ele a conta segue so com o outro.
+    function um(tipo, lista) {
+      var chave = tipo + '/' + uf;
+      if (sc.cache[chave]) return Promise.resolve(sc.cache[chave]);
+      if (lista.indexOf(uf) < 0) return Promise.resolve(null);
+      return terrJson('dados/' + tipo + '/' + uf + '.json').then(function (d) { sc.cache[chave] = d; return d; })
+        .catch(function () { return null; });
+    }
+    return Promise.all([um('pessoas', sc.pessoasUfs), um('escolas', sc.escolasUfs)]).then(function (r) {
+      return { pessoas: r[0], escolas: r[1] };
+    });
+  }
+
+  function scPct(a, b) { return b ? (a / b * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '-'; }
+
+  function scMostrar(st, raio) {
+    var caixa = $('#sc-resultado'), d = st.dados, h = '';
+    if (d.pessoas) {
+      h += '<div class="terr-cartao"><div class="sc-grande">' + fmt(st.pessoas.fora) + '</div>' +
+        '<div class="sc-sub">pessoas (' + scPct(st.pessoas.fora, st.pessoas.total) + ' de ' + fmt(st.pessoas.total) +
+        ') em setores com o centro a mais de ' + raio + ' km de uma antena</div>';
+    } else {
+      h += '<div class="terr-cartao">';
+    }
+    if (d.escolas) {
+      var semCoord = d.escolas.sem_coord || 0;
+      h += '<div class="sc-grande">' + fmt(st.escolas.fora) + '</div>' +
+        '<div class="sc-sub">escolas ' + ($('#sc-publicas').checked ? 'públicas ' : '') + '(' + scPct(st.escolas.fora, st.escolas.total) +
+        ' de ' + fmt(st.escolas.total) + ') a mais de ' + raio + ' km de uma antena' +
+        (semCoord ? '. Fora da conta: ' + fmt(semCoord) + ' escolas do estado sem coordenada no catálogo' : '') + '</div>';
+    }
+    h += '</div>';
+    var rk = SemCobertura.ranking(st, 12);
+    if (rk.length) {
+      h += '<table class="terr-rank"><tr><th>Município</th><th>Pessoas fora</th><th>Escolas fora</th></tr>' +
+        rk.map(function (r) {
+          return '<tr><td>' + esc(r.nome) + '</td><td>' + fmt(r.pessoasFora) + '</td><td>' + fmt(r.escolasFora) + '</td></tr>';
+        }).join('') + '</table>';
+    }
+    if (d.escolas && st.escolas.lista.length) {
+      h += '<div class="botoes"><button id="sc-baixar" type="button">Baixar a lista das escolas (CSV)</button></div>';
+    }
+    caixa.innerHTML = h;
+    caixa.hidden = false;
+    var bt = $('#sc-baixar');
+    if (bt) bt.addEventListener('click', function () { scBaixar(st, raio); });
+  }
+
+  function scDesenhar(st) {
+    sc.camada = L.layerGroup().addTo(mapa);
+    var lista = st.escolas.lista, passo = Math.max(1, Math.ceil(lista.length / 3000)), b = null;
+    for (var i = 0; i < lista.length; i += passo) {
+      var s = lista[i];
+      L.circleMarker([s[1], s[2]], { radius: 4, weight: 1, color: '#fff', fillColor: '#e05050', fillOpacity: .9 })
+        .bindTooltip(esc(s[3]) + ' (' + esc(SemCobertura.nomeDoMunicipio(st, s)) + ')').addTo(sc.camada);
+      b = b ? b.extend([s[1], s[2]]) : L.latLngBounds([s[1], s[2]], [s[1], s[2]]);
+    }
+    if (b) voarParaArea(b.pad(0.08), { maxZoom: 12 });
+  }
+
+  function scBaixar(st, raio) {
+    var linhas = [['codigo_inep', 'escola', 'municipio', 'rede', 'zona', 'latitude', 'longitude', 'sem_antena_ate_km']
+      .map(celulaCsv).join(';')];
+    st.escolas.lista.forEach(function (s) {
+      linhas.push([s[0], s[3], SemCobertura.nomeDoMunicipio(st, s), (s[5] & 1) ? 'Privada' : 'Pública',
+        (s[5] & 2) ? 'Urbana' : 'Rural', numCsv(s[1], 6), numCsv(s[2], 6), raio].map(celulaCsv).join(';'));
+    });
+    var blob = new Blob(['\ufeff' + linhas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'escolas_sem_cobertura_' + st.uf + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  function scCalcular() {
+    var uf = $('#sc-uf').value, raio = +$('#sc-raio').value;
+    if (!uf) return;
+    scLimpar();
+    var bilhete = sc.ticket;
+    $('#sc-calcular').disabled = true;
+    scMsg('Carregando dados de ' + uf + '...');
+    scCarregar(uf).then(function (dados) {
+      if (bilhete !== sc.ticket) return;
+      if (!dados.pessoas && !dados.escolas) { scMsg('Sem dados para ' + uf + '.', 'erro'); $('#sc-calcular').disabled = false; return; }
+      var st = SemCobertura.iniciar(dados, { soPublicas: $('#sc-publicas').checked });
+      st.uf = uf;
+      var tem = terrTemAntena(raio), total = st.np + st.ne;
+      (function fatia() {
+        if (bilhete !== sc.ticket) return;
+        var fim = SemCobertura.passo(st, tem, 4000);
+        scMsg('Calculando... ' + Math.min(100, Math.round((st.i + st.j) / Math.max(1, total) * 100)) + '%');
+        if (!fim) { setTimeout(fatia, 0); return; }
+        sc.estado = st;
+        $('#sc-calcular').disabled = false;
+        scMsg('');
+        scMostrar(st, raio);
+        scDesenhar(st);
+      })();
+    });
+  }
+
+  function ligarSemCobertura() {
+    var sec = $('#secao-semcob');
+    if (!sec || !window.SemCobertura || !window.fetch) return;
+    Promise.all([
+      terrJson('dados/pessoas/indice.json').catch(function () { return { ufs: [] }; }),
+      terrJson('dados/escolas/indice.json').catch(function () { return { ufs: [] }; })
+    ]).then(function (r) {
+      sc.pessoasUfs = r[0].ufs || [];
+      sc.escolasUfs = r[1].ufs || [];
+      var ufs = sc.pessoasUfs.concat(sc.escolasUfs.filter(function (u) { return sc.pessoasUfs.indexOf(u) < 0; })).sort();
+      if (!ufs.length) return;
+      $('#sc-uf').innerHTML = '<option value="">Escolha o estado</option>' + ufs.map(function (u) {
+        return '<option value="' + esc(u) + '">' + esc(u) + '</option>';
+      }).join('');
+      $('#sc-uf').addEventListener('change', function () { scLimpar(); scMsg(''); $('#sc-calcular').disabled = !this.value; });
+      $('#sc-raio').addEventListener('change', scLimpar);
+      $('#sc-publicas').addEventListener('change', scLimpar);
+      $('#sc-calcular').addEventListener('click', scCalcular);
+      sec.hidden = false;
+    });
+  }
+
   function ligarTerritorio() {
     var sec = $('#secao-territorio');
     if (!sec || !window.Territorio || !window.fetch) return;
@@ -2234,6 +2376,7 @@
     ligarLugares();
     ligarTerritorio();
     ligarEvolucao();
+    ligarSemCobertura();
     window.addEventListener('offline', function () {
       aviso('Sem internet: as antenas continuam no mapa. Busca por CEP/endereço, mapa de fundo e cobertura precisam de conexão.', '');
     });
