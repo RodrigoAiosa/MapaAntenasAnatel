@@ -142,7 +142,7 @@ class _Acumulador:
     __slots__ = ("linhas", "coords", "empresa", "entidade", "cnpj", "fistel", "uf",
                  "municipio", "ibge", "endereco", "numero", "bairro", "complemento",
                  "cep", "geracoes", "tecnologias", "faixas", "tipos5g", "setores",
-                 "infra", "carater", "primeiro_lic", "ultimo_lic", "validade")
+                 "infra", "carater", "primeiro_lic", "ultimo_lic", "validade", "lic_ger")
 
     def __init__(self):
         self.linhas = 0
@@ -159,6 +159,7 @@ class _Acumulador:
         self.setores = set()
         self.carater = set()
         self.primeiro_lic = self.ultimo_lic = self.validade = ""
+        self.lic_ger = {}   # geracao -> menor "Data Primeiro Licenciamento" entre as linhas dela
 
 
 def _primeiro(atual, novo):
@@ -229,6 +230,8 @@ def consolidar(linhas):
         d1 = data_iso(r.get("Data Primeiro Licenciamento"))
         if d1 and (not a.primeiro_lic or d1 < a.primeiro_lic):
             a.primeiro_lic = d1
+        if d1 and g in GERACOES and (g not in a.lic_ger or d1 < a.lic_ger[g]):
+            a.lic_ger[g] = d1
         d2 = data_iso(r.get("Data Licenciamento"))
         if d2 and d2 > a.ultimo_lic:
             a.ultimo_lic = d2
@@ -239,8 +242,16 @@ def consolidar(linhas):
     estacoes = []
     fora = []
     divergentes = 0
+    historico = Counter()   # (uf, operadora, geracao, ano) -> ERBs cuja geracao foi licenciada nesse ano
+    hist_sem_data = 0
     for num, a in acc.items():
         empresas_cruas[a.empresa] += 1
+        for g in a.geracoes:
+            ano = a.lic_ger.get(g, "")[:4]
+            if ano.isdigit() and 1990 <= int(ano) <= 2100:
+                historico[(a.uf, operadora_de(a.empresa), g, int(ano))] += 1
+            else:
+                hist_sem_data += 1
         validas = Counter()
         for (lt, ln), n in a.coords.items():
             cv = coordenada_valida(lt, ln)
@@ -311,6 +322,8 @@ def consolidar(linhas):
         "fora_do_mapa": len(fora),
         "coord_divergente": divergentes,
         "empresas_cruas": dict(empresas_cruas),
+        "historico": historico,
+        "historico_sem_data": hist_sem_data,
     }
     return estacoes, fora, info
 

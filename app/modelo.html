@@ -881,6 +881,12 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 
 /* Cobertura do municipio */
 #terr-resultado { margin-top: 10px; }
+#evo-grafico svg { width: 100%; height: auto; display: block; }
+#evo-grafico .eixo { stroke: var(--border2); stroke-width: 1; }
+#evo-grafico .rot { fill: var(--muted); font: 10px 'Inter', sans-serif; }
+#evo-grafico .linha { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.evo-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; margin-top: 6px; }
+.evo-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .terr-cartao { background: var(--card2); border: 1px solid var(--border); border-radius: var(--rsm); padding: 12px; }
 .terr-grande { font-size: 28px; font-weight: 800; line-height: 1; color: var(--cor-verde); }
 .terr-grande.baixo { color: var(--cor-vermelho); }
@@ -1020,6 +1026,16 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
         arquivo do mapa. Proximidade nao garante sinal.</div>
     </div>
 
+    <div class="secao" id="secao-evolucao" hidden>
+      <h2>Evolução das antenas</h2>
+      <div id="evo-grafico" role="img" aria-label="Gráfico de antenas acumuladas por ano e geração"></div>
+      <div id="evo-resumo" class="terr-detalhe"></div>
+      <div class="nota">Segue os filtros de estado, operadora e geração. Reconstruída da
+        <strong>data do primeiro licenciamento</strong> de cada geração nas antenas que ainda constam
+        na base da Anatel: antenas já desativadas não entram, então os anos antigos ficam
+        <strong>subestimados</strong>. Uma ERB conta em cada geração que tem.</div>
+    </div>
+
     <div class="secao" id="secao-territorio" hidden>
       <h2>Cobertura do município</h2>
       <select id="terr-uf" class="campo" aria-label="Estado"></select>
@@ -1130,6 +1146,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 <script>/*INSERIR:ENDERECO_JS*/</script>
 <script>/*INSERIR:COBERTURA_JS*/</script>
 <script>/*INSERIR:TERRITORIO_JS*/</script>
+<script>/*INSERIR:EVOLUCAO_JS*/</script>
 <script>/*INSERIR:APP_JS*/</script>
 <script>/*INSERIR:PAINEL_JS*/</script>
 <script>/*INSERIR:TOUR_JS*/</script>

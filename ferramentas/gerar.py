@@ -163,6 +163,7 @@ def montar_html(destino, estacoes, info, origem):
         "ENDERECO_JS": lambda: ler("app/js/endereco.js"),
         "COBERTURA_JS": lambda: ler("app/js/cobertura.js"),
         "TERRITORIO_JS": lambda: ler("app/js/territorio.js"),
+        "EVOLUCAO_JS": lambda: ler("app/js/evolucao.js"),
         "APP_JS": lambda: ler("app/js/app.js"),
         "PAINEL_JS": lambda: ler("app/js/painel.js"),
         "TOUR_JS": lambda: ler("app/js/tour.js"),
@@ -309,6 +310,14 @@ def main(argv=None):
         escrever_planilha(xlsx, estacoes, fora, info, origem)
         saidas.append(xlsx)
         print("  planilha ..: %s" % xlsx)
+
+    if not ufs:
+        import historico
+        from consolidar import OPERADORAS
+        hist = historico.escrever(args.saida / "historico.json", info["historico"],
+                                  info["historico_sem_data"], OPERADORAS)
+        print("  historico .: %d UFs, anos %s-%s" % (len(hist["uf"]), (hist["anos"] or ["-"])[0],
+                                                   (hist["anos"] or ["-"])[-1]))
 
     texto, confere = relatorio(info, estacoes, fora, origem, saidas, ufs, time.time() - t0)
     (args.saida / ("RELATORIO_GERACAO%s.txt" % sufixo)).write_text(texto, encoding="utf-8")

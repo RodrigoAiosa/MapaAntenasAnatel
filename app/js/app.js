@@ -1698,6 +1698,75 @@
     fatia();
   }
 
+  // ------------------------------------------------- 8a. EVOLUCAO POR ANO
+  var evo = { dados: null };
+
+  function evoSelecao() {
+    var ops = [], gers = [];
+    for (var k = 0; k < ANT_OPERADORAS.length; k++) if (estado.operadoras[k]) ops.push(ANT_OPERADORAS[k]);
+    for (var g = 0; g < ANT_GERACOES.length; g++) if (estado.geracoes & (1 << g)) gers.push(ANT_GERACOES[g]);
+    return { uf: estado.uf >= 0 ? UFS[estado.uf] : '', ops: ops, gers: gers };
+  }
+
+  function renderizarEvolucao() {
+    var sec = $('#secao-evolucao');
+    if (!evo.dados || !sec || !window.Evolucao) return;
+    var sel = evoSelecao();
+    var s = Evolucao.series(evo.dados, sel);
+    var a0 = Evolucao.primeiroAno(s);
+    var alvo = $('#evo-grafico'), resumo = $('#evo-resumo');
+    if (a0 === null || !sel.gers.length || !sel.ops.length) {
+      alvo.innerHTML = '';
+      resumo.textContent = 'Nenhuma antena com os filtros atuais.';
+      return;
+    }
+    var ini = s.anos.indexOf(a0), anos = s.anos.slice(ini);
+    var W = 320, H = 170, ml = 40, mr = 8, mt = 8, mb = 22;
+    var max = 1;
+    sel.gers.forEach(function (g) { max = Math.max(max, s.acum[g][s.anos.length - 1]); });
+    var topo = Math.pow(10, Math.floor(Math.log(max) / Math.LN10));
+    max = Math.ceil(max / topo) * topo;
+    function x(i) { return ml + (anos.length > 1 ? i * (W - ml - mr) / (anos.length - 1) : 0); }
+    function y(v) { return mt + (H - mt - mb) * (1 - v / max); }
+    var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    [0, 0.5, 1].forEach(function (f) {
+      var v = max * f;
+      h += '<line class="eixo" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>' +
+           '<text class="rot" x="' + (ml - 4) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + fmt(Math.round(v)) + '</text>';
+    });
+    var passo = Math.max(1, Math.ceil(anos.length / 6));
+    anos.forEach(function (a, i) {
+      if (i % passo === 0 && (anos.length - 1 - i >= passo || i === anos.length - 1))
+        h += '<text class="rot" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + a + '</text>';
+    });
+    sel.gers.forEach(function (g) {
+      var pts = s.acum[g].slice(ini).map(function (v, i) { return x(i).toFixed(1) + ',' + y(v).toFixed(1); });
+      h += '<polyline class="linha" stroke="' + CORES_GER[g] + '" points="' + pts.join(' ') + '"><title>' + g + '</title></polyline>';
+    });
+    h += '</svg><div class="evo-leg">' + sel.gers.map(function (g) {
+      return '<span><i style="background:' + CORES_GER[g] + '"></i>' + g + '</span>';
+    }).join('') + '</div>';
+    alvo.innerHTML = h;
+    var ult = s.anos.length - 1, partes = [];
+    sel.gers.forEach(function (g) {
+      var tot = s.acum[g][ult];
+      if (!tot) return;
+      partes.push('<b>' + g + '</b>: ' + fmt(tot) + ' ERBs, ' + fmt(s.novas[g][ult]) + ' licenciadas em ' + s.anos[ult] + ' (até hoje)' +
+        (s.anos.length > 1 ? ' e ' + fmt(s.novas[g][ult - 1]) + ' em ' + s.anos[ult - 1] : ''));
+    });
+    resumo.innerHTML = partes.join('<br>');
+  }
+
+  function ligarEvolucao() {
+    if (!window.Evolucao || !window.fetch) return;
+    terrJson('dados/historico.json').then(function (d) {
+      if (!d || !d.anos || !d.anos.length) return;
+      evo.dados = d;
+      $('#secao-evolucao').hidden = false;
+      renderizarEvolucao();
+    }).catch(function () { /* sem historico nesta publicacao: a secao fica escondida */ });
+  }
+
   function ligarTerritorio() {
     var sec = $('#secao-territorio');
     if (!sec || !window.Territorio || !window.fetch) return;
@@ -1977,6 +2046,7 @@
   function aoMudarFiltro() {
     camadaAntenas.redesenhar();
     renderizarResumo();
+    renderizarEvolucao();
     renderizarPerto();
     // O lote respeita os filtros: muda o filtro, a resposta acompanha.
     if (lote.resultado) rodarLote(false);
@@ -2163,6 +2233,7 @@
     $('#compartilhar').addEventListener('click', compartilhar);
     ligarLugares();
     ligarTerritorio();
+    ligarEvolucao();
     window.addEventListener('offline', function () {
       aviso('Sem internet: as antenas continuam no mapa. Busca por CEP/endereço, mapa de fundo e cobertura precisam de conexão.', '');
     });

@@ -163,6 +163,11 @@ def main(argv=None):
         escrever(PUBLIC / "index.html",
                  injetar_cabecalho(mapas[0].read_text(encoding="utf-8"), base))
 
+        hist = saida / "historico.json"
+        if hist.exists():
+            (PUBLIC / "dados").mkdir(exist_ok=True)
+            shutil.copy2(hist, PUBLIC / "dados" / "historico.json")
+
         planilhas = sorted(saida.glob("Antenas_SMP_Anatel_*.xlsx"))
         nome_planilha = ""
         if planilhas:

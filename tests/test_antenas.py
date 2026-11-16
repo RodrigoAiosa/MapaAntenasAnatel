@@ -417,5 +417,44 @@ class TesteMalhasIbge(unittest.TestCase):
         self.assertEqual(sum("servicodados" in u for u in chamadas), 2)
 
 
+class TesteHistorico(unittest.TestCase):
+    def test_data_do_5g_nao_e_a_da_antena(self):
+        """Uma ERB de 2003 que ganhou 5G em 2022 conta 4G em 2003 e 5G em 2022."""
+        import historico as H
+        from datetime import date
+        _, _, info = C.consolidar([
+            linha("1", ger="4G", d1="13/08/2003"),
+            linha("1", ger="4G", d1="01/02/2010"),     # outra frequencia, mais nova: vale a menor
+            linha("1", ger="5G", tec="NR", d1="05/03/2022"),
+            linha("2", empresa="CLARO", ger="3G", d1="2015-06-01"),
+            linha("3", ger="4G", d1=""),                # sem data: nao entra na curva
+        ])
+        h = info["historico"]
+        self.assertEqual(h[("SC", "vivo", "4G", 2003)], 1)
+        self.assertEqual(h[("SC", "vivo", "5G", 2022)], 1)
+        self.assertEqual(h[("SC", "claro", "3G", 2015)], 1)
+        self.assertNotIn(("SC", "vivo", "4G", 2010), h)
+        self.assertEqual(info["historico_sem_data"], 1)
+        d = H.montar(h, info["historico_sem_data"], C.OPERADORAS, hoje=date(2026, 11, 16))
+        self.assertEqual(d["anos"][0], 2003)
+        self.assertEqual(d["anos"][-1], 2026)
+        self.assertEqual(d["uf"]["SC"]["vivo"]["5G"][2022 - 2003], 1)
+        self.assertEqual(sum(d["uf"]["SC"]["vivo"]["4G"]), 1)
+        self.assertEqual(len(d["uf"]["SC"]["vivo"]["4G"]), len(d["anos"]))
+
+    def test_sem_nenhuma_data_nao_quebra(self):
+        import historico as H
+        d = H.montar({}, 5, C.OPERADORAS)
+        self.assertEqual((d["anos"], d["uf"], d["sem_data"]), ([], {}, 5))
+
+    def test_gerar_escreve_historico_json(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            montar_zip(t / "b.zip", [linha("1", ger="5G", tec="NR", d1="05/03/2022")])
+            self.assertEqual(gerar.main(["--zip", str(t / "b.zip"), "--saida", str(t / "o"), "--sem-planilha"]), 0)
+            d = json.loads((t / "o" / "historico.json").read_text(encoding="utf-8"))
+            self.assertEqual(d["uf"]["SC"]["vivo"]["5G"][-1 - (d["anos"][-1] - 2022)], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

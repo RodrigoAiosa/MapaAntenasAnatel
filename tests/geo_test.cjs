@@ -9,6 +9,7 @@ const assert = require('assert');
 const path = require('path');
 const Geo = require(path.join(__dirname, '..', 'app', 'js', 'geo.js'));
 const Territorio = require(path.join(__dirname, '..', 'app', 'js', 'territorio.js'));
+const Evolucao = require(path.join(__dirname, '..', 'app', 'js', 'evolucao.js'));
 const Cobertura = require(path.join(__dirname, '..', 'app', 'js', 'cobertura.js'));
 
 let falhas = 0;
@@ -326,6 +327,29 @@ caso('rumo: pontos cardeais', () => {
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -45), 90));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -24, -46), 180));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -47), 270));
+});
+
+// ---- evolucao por ano
+const HIST = { anos: [2019, 2020, 2021, 2022], gers: ['2G', '3G', '4G', '5G'], uf: {
+  SC: { claro: { '4G': [5, 3, 2, 1], '5G': [0, 0, 1, 4] }, tim: { '4G': [1, 1, 1, 1], '5G': [0, 0, 0, 2] } },
+  PR: { claro: { '4G': [10, 0, 0, 0] } } } };
+caso('evolucao: soma UFs e operadoras e acumula por ano', () => {
+  const s = Evolucao.series(HIST, {});
+  assert.deepStrictEqual(s.novas['4G'], [16, 4, 3, 2]);
+  assert.deepStrictEqual(s.acum['4G'], [16, 20, 23, 25]);
+  assert.deepStrictEqual(s.acum['5G'], [0, 0, 1, 7]);
+});
+caso('evolucao: filtro de UF, operadora e geracao', () => {
+  const s = Evolucao.series(HIST, { uf: 'SC', ops: ['tim'], gers: ['5G'] });
+  assert.deepStrictEqual(Object.keys(s.acum), ['5G']);
+  assert.deepStrictEqual(s.acum['5G'], [0, 0, 0, 2]);
+  assert.strictEqual(Evolucao.primeiroAno(s), 2022);
+});
+caso('evolucao: sem dados ou sem operadora marcada devolve series vazias, sem quebrar', () => {
+  assert.deepStrictEqual(Evolucao.series(null, {}).anos, []);
+  const s = Evolucao.series(HIST, { ops: [] });
+  assert.strictEqual(Evolucao.primeiroAno(s), null);
+  assert.deepStrictEqual(Evolucao.series(HIST, { uf: 'XX' }).acum['4G'], [0, 0, 0, 0]);
 });
 
 // ---- territorio: amostragem da cobertura por proximidade
