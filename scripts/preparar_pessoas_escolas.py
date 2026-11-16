@@ -14,7 +14,8 @@ Fontes (abertas):
 Saidas:
   dados_prontos/pessoas/<UF>.json  {"uf","mun":[[cod,nome]],"p":[x,y,pessoas,iMun, ...]}
         x = longitude*1e4 e y = latitude*1e4, inteiros (11 m de resolucao).
-  dados_prontos/escolas/<UF>.json  {"uf","mun":[nome],"e":[[codINEP,lat,lon,nome,iMun,flags],...]}
+  dados_prontos/escolas/<UF>.json  {"uf","mun":[nome],"sem_coord":n,"e":[[codINEP,lat,lon,nome,iMun,flags],...]}
+        sem_coord = escolas da UF que a fonte nao traz com coordenada (ficam fora de "e").
         flags: 1 = privada, 2 = urbana.
   dados_prontos/pessoas/indice.json, escolas/indice.json  {"ufs":[...],"fonte","ano"}
 So biblioteca padrao + pyshp (pip install pyshp).
@@ -110,15 +111,16 @@ def escolas_do_gpkg(caminho):
         if uf not in UFS:
             est["sem_uf"] += 1
             continue
+        d = por_uf.setdefault(uf, {"mun": [], "e": [], "sem_coord": 0})
         p = ponto_do_gpkg(geom)
         if p is None:
             est["sem_ponto"] += 1
+            d["sem_coord"] += 1
             continue
         lon, lat = p
         if not dentro_do_brasil(lat, lon):
             est["fora_do_brasil"] += 1
             continue
-        d = por_uf.setdefault(uf, {"mun": [], "e": []})
         idx = ind_mun.setdefault(uf, {})
         mun = (mun or "").strip()
         if mun not in idx:

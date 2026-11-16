@@ -10,6 +10,7 @@ const path = require('path');
 const Geo = require(path.join(__dirname, '..', 'app', 'js', 'geo.js'));
 const Territorio = require(path.join(__dirname, '..', 'app', 'js', 'territorio.js'));
 const Evolucao = require(path.join(__dirname, '..', 'app', 'js', 'evolucao.js'));
+const SemCobertura = require(path.join(__dirname, '..', 'app', 'js', 'semcobertura.js'));
 const Cobertura = require(path.join(__dirname, '..', 'app', 'js', 'cobertura.js'));
 
 let falhas = 0;
@@ -327,6 +328,40 @@ caso('rumo: pontos cardeais', () => {
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -45), 90));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -24, -46), 180));
   assert.ok(perto(Geo.rumoGraus(-23, -46, -23, -47), 270));
+});
+
+// ---- sem cobertura: pessoas e escolas longe de antena
+const SEMCOB = {
+  pessoas: { mun: [['1', 'Florianópolis'], ['2', 'Palhoça']],
+    p: [-485000, -275000, 1000, 0,   -485100, -275100, 500, 0,   -486000, -276000, 200, 1] },
+  escolas: { mun: ['Florianópolis', 'Palhoça'],
+    e: [[1, -27.5, -48.5, 'A', 0, 2], [2, -27.6, -48.6, 'B', 1, 3], [3, -27.51, -48.51, 'C', 0, 0]] }
+};
+// antena "fica" so a oeste de -48.55: lon < -48.55 tem sinal
+const temAntenaTeste = (lat, lon) => lon < -48.55;
+caso('sem cobertura: soma pessoas e escolas fora e agrupa por municipio', () => {
+  const st = SemCobertura.iniciar(SEMCOB, { soPublicas: false });
+  while (!SemCobertura.passo(st, temAntenaTeste, 2)) {}
+  assert.strictEqual(st.pessoas.total, 1700);
+  assert.strictEqual(st.pessoas.fora, 1500);
+  assert.strictEqual(st.escolas.total, 3);
+  assert.strictEqual(st.escolas.fora, 2);
+  const r = SemCobertura.ranking(st);
+  assert.deepStrictEqual(r.map(x => [x.nome, x.pessoasFora, x.escolasFora]), [['Florianópolis', 1500, 2]]);
+});
+caso('sem cobertura: so escolas publicas descarta as privadas do total', () => {
+  const st = SemCobertura.iniciar(SEMCOB, { soPublicas: true });
+  while (!SemCobertura.passo(st, temAntenaTeste, 100)) {}
+  assert.strictEqual(st.escolas.total, 2);
+  assert.deepStrictEqual(st.escolas.lista.map(s => s[3]), ['A', 'C']);
+});
+caso('sem cobertura: tudo coberto nao lista nada; sem dados de escolas nao quebra', () => {
+  const st = SemCobertura.iniciar({ pessoas: SEMCOB.pessoas }, {});
+  while (!SemCobertura.passo(st, () => true, 100)) {}
+  assert.strictEqual(st.pessoas.fora, 0);
+  assert.deepStrictEqual(SemCobertura.ranking(st), []);
+  assert.strictEqual(st.escolas.total, 0);
+  assert.strictEqual(SemCobertura.semAcento(' Florianópolis '), 'florianopolis');
 });
 
 // ---- evolucao por ano

@@ -468,6 +468,7 @@ class TestePessoasEscolas(unittest.TestCase):
             por_uf, est = self.P.escolas_do_gpkg(f)
         self.assertEqual((est["lidas"], est["sem_ponto"], est["fora_do_brasil"], est["publicadas"]), (5, 1, 1, 3))
         sc = por_uf["SC"]
+        self.assertEqual(sc["sem_coord"], 1)
         self.assertEqual(sc["mun"], ["Florianópolis"])
         self.assertEqual(sc["e"][0], [42000001, -27.5, -48.5, "EEB UM", 0, 2])      # publica, urbana
         self.assertEqual(sc["e"][1][5], 1)                                          # privada, rural
