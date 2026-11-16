@@ -1809,13 +1809,22 @@
       h += '<div class="terr-cartao">';
     }
     if (d.escolas) {
-      var semCoord = d.escolas.sem_coord || 0;
       h += '<div class="sc-grande">' + fmt(st.escolas.fora) + '</div>' +
         '<div class="sc-sub">escolas ' + ($('#sc-publicas').checked ? 'públicas ' : '') + '(' + scPct(st.escolas.fora, st.escolas.total) +
-        ' de ' + fmt(st.escolas.total) + ') a mais de ' + raio + ' km de uma antena' +
-        (semCoord ? '. Fora da conta: ' + fmt(semCoord) + ' escolas do estado sem coordenada no catálogo' : '') + '</div>';
+        ' de ' + fmt(st.escolas.total) + ') a mais de ' + raio + ' km de uma antena</div>';
     }
     h += '</div>';
+    if (d.escolas) {
+      var semCoord = d.escolas.sem_coord || 0, comCoord = d.escolas.e.length, todas = semCoord + comCoord;
+      var fracao = todas ? semCoord / todas : 0;
+      if (semCoord) {
+        h += '<div class="sc-aviso' + (fracao >= 0.3 ? ' forte' : '') + '"><strong>' + scPct(semCoord, todas) +
+          ' das escolas de ' + esc(st.uf) + ' ficam fora desta conta</strong> (' + fmt(semCoord) + ' de ' + fmt(todas) +
+          '): o catálogo do INEP não traz a coordenada delas. ' +
+          (fracao >= 0.3 ? 'Com tanta escola faltando, trate o número de escolas como piso, não como retrato do estado. ' : '') +
+          'Se as que faltam forem as rurais, o problema real é maior que o mostrado.</div>';
+      }
+    }
     var rk = SemCobertura.ranking(st, 12);
     if (rk.length) {
       h += '<table class="terr-rank"><tr><th>Município</th><th>Pessoas fora</th><th>Escolas fora</th></tr>' +
